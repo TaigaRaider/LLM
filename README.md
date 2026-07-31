@@ -125,7 +125,7 @@ all recorded with **timestamps** and the **names of responsible officers** — c
 
 ## 7. Non-Functional Requirements
 
-- **Offline capability:** Transport-day operations can hit network dead zones — the app must work offline and sync later.
+- **Offline capability (backup):** Internet is normally available, but if it drops mid-event operations must continue — every officer device queues actions locally (local cache) and syncs to the server when connectivity returns.
 - **Speed:** Tag scanning → confirmation in < 1 second.
 - **Concurrency:** Must handle peak check-in surges (e.g., 500 participants in 2 hours).
 - **Security:** Officers must log in; actions are attributed to logged-in users only.
@@ -134,36 +134,38 @@ all recorded with **timestamps** and the **names of responsible officers** — c
 
 ---
 
-## 8. Proposed Tech Stack (draft)
+## 8. Tech Stack (decided)
 
-| Layer | Options | Notes |
+| Layer | Choice | Notes |
 |---|---|---|
-| Frontend | Web app (responsive) + optional mobile PWA | One codebase, works on phones and tablets |
-| Backend | Node.js / Python (FastAPI) / Django | API-first design |
-| Database | PostgreSQL / SQLite (offline-first sync) | Relational chain-of-custody data |
-| Barcode | Code 128 / QR via thermal label printer | Zebra or generic TSC printers |
-| Deployment | Cloud (Railway/Render/AWS) + local fallback | Event-day resilience |
+| Frontend | **React + Vite (PWA)** + Tailwind CSS | Single codebase for phones/tablets/desktop; camera-based scanning via `html5-qrcode`; big-button, zero-training UI |
+| Backend | **Python — FastAPI** | Typed (Pydantic) API-first design; auto Swagger docs; suits reconciliation/reporting logic |
+| Database | **PostgreSQL** (server) + **local device cache** (offline backup) | Relational integrity, transactions, concurrency for the chain of custody; devices queue actions locally (e.g., IndexedDB/SQLite) and sync when internet returns |
+| Barcode | QR / Code 128; `html5-qrcode` (scans) + thermal label printer (tags) | Scanners may need procurement; printers supplied by organizers (models TBD) |
+| Deployment | Cloud (Railway/Render/AWS) | Event-day resilience; deployed service + managed PostgreSQL |
 
 ---
 
 ## 9. MVP Scope (v1)
 
-**In:** Participant + bag registration, tag printing, vehicle loading manifest, handover scanning, participant/bag lookup, reconciliation dashboard, CSV export, basic role-based login.
+**In:** Participant + bag registration, tag printing, vehicle loading manifest, handover scanning, participant/bag lookup, reconciliation dashboard, CSV export, basic role-based login, **offline backup** (local action queue + auto-sync on reconnect).
 
-**Out (later):** GPS vehicle tracking, SMS/WhatsApp notifications to participants, lost-bag case management, photo capture of bags, offline mode.
+**Out (later):** GPS vehicle tracking, SMS/WhatsApp notifications to participants, lost-bag case management, photo capture of bags.
 
 ---
 
-## 10. Open Questions (to resolve during elaboration)
+## 10. Open Questions — Resolved (elaboration)
 
-1. Does the event have internet at origin/destination, or must we plan for fully offline operation?
-2. How are participants identified — event ID card, phone number, national ID, or check-in code?
-3. Will LLM handle *pre-arrival* luggage (bags dropped days before transport day)?
-4. What is the expected peak volume (participants, bags per participant, number of vehicles)?
-5. Is there an existing participant/registration database to integrate with?
-6. Who supplies the tag printers and scanners — and what models?
-7. Should participants be able to *claim* bags without a tag (lost tag scenario)?
-8. Do we need multi-language support?
+| # | Question | Answer |
+|---|---|---|
+| 1 | Does the event have internet at origin/destination, or must we plan for fully offline operation? | Internet is available — but the system must tolerate drops: devices queue actions locally (offline backup) and sync later |
+| 2 | How are participants identified — event ID card, phone number, national ID, or check-in code? | Event ID card; a barcode should be added to each ID card to help match participants to their luggage |
+| 3 | Will LLM handle *pre-arrival* luggage (bags dropped days before transport day)? | No — check-in happens on transport day only |
+| 4 | What is the expected peak volume (participants, bags per participant, number of vehicles)? | ~700 participants; all bags transported in **one truck**. Bags-per-participant still to be confirmed |
+| 5 | Is there an existing participant/registration database to integrate with? | Yes — integrate with the existing participant registration database |
+| 6 | Who supplies the tag printers and scanners — and what models? | Organizers supply printers; scanners may need to be procured. Models TBD |
+| 7 | Should participants be able to *claim* bags without a tag (lost tag scenario)? | Yes, but only if identity can be appropriately verified |
+| 8 | Do we need multi-language support? | No — English only (operators have adequate English) |
 
 ---
 
@@ -181,11 +183,11 @@ all recorded with **timestamps** and the **names of responsible officers** — c
 
 | Phase | Timeline (indicative) | Deliverables |
 |---|---|---|
-| 1. Elaboration | Week 1 | This README validated, open questions answered |
+| 1. Elaboration | Week 1 | This README validated, open questions answered ✔ |
 | 2. Prototype | Week 2 | Clickable prototype / demo of check-in + handover |
 | 3. MVP build | Week 3–6 | Full v1 system, tested on a dry run |
 | 4. Pilot | Event day | Live operation with a small group, post-mortem |
-| 5. Hardening | Post-pilot | Fixes, offline mode, notifications, reporting |
+| 5. Hardening | Post-pilot | Fixes, sync reliability, notifications, reporting |
 
 ---
 

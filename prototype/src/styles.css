@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+  #print-area {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+  }
+}
+
+/* ---------- motion primitives ---------- */
+
+@keyframes q-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes q-rise-sm {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes q-pop {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes q-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes q-count {
+  from { opacity: 0; transform: translateY(40%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes q-toast {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.q-rise { animation: q-rise 220ms ease-out both; }
+.q-rise-sm { animation: q-rise-sm 180ms ease-out both; }
+.q-pop { animation: q-pop 240ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.q-fade { animation: q-fade 160ms ease-out both; }
+.q-count { animation: q-count 140ms ease-out both; }
+.q-toast { animation: q-toast 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .q-rise, .q-rise-sm, .q-pop, .q-fade, .q-count, .q-toast {
+    animation: none !important;
+  }
+}
