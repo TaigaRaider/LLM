@@ -16,24 +16,24 @@ export default function Loading() {
   const onTruck = bags.filter((b) => b.status === 'LOADED' || b.status === 'IN_TRANSIT')
   const pending = bags.filter((b) => b.status === 'CHECKED_IN')
 
-  const onScan = (code) => {
+  const onScan = async (code) => {
     const tag = code.trim().toUpperCase()
     setScan('')
     if (!tag) return
     const bag = bags.find((b) => b.tagCode === tag)
     if (!bag) return showToast(`Tag ${tag} not found`)
     if (bag.status !== 'CHECKED_IN') return showToast(`${tag} is ${bag.status} — already loaded`)
-    loadBags([tag])
-    showToast(`${tag} loaded onto ${vehicle.code} ✓`)
+    const ok = await loadBags([tag])
+    if (ok) showToast(`${tag} loaded onto ${vehicle.code} ✓`)
   }
 
-  const confirmDeparture = () => {
+  const confirmDeparture = async () => {
     if (onTruck.length === 0) {
       if (!window.confirm('No bags are loaded on the truck. Confirm departure anyway?')) return
     } else if (pending.length > 0) {
       if (!window.confirm(`${pending.length} checked-in bag${pending.length !== 1 ? 's' : ''} are not loaded yet. Depart without them?`)) return
     }
-    depart()
+    await depart()
     showToast('Manifest locked — truck departed')
   }
 
@@ -81,8 +81,8 @@ export default function Loading() {
         )}
         {vehicle.status === 'AT_DESTINATION' && (
           <button
-            onClick={() => {
-              returnToOrigin()
+            onClick={async () => {
+              await returnToOrigin()
               showToast(`${vehicle.code} returned to origin — ready to load`)
             }}
             className="mt-4 w-full py-3 bg-teal-600 text-white text-base font-semibold rounded-lg hover:bg-teal-700 active:scale-[0.99] transition-all duration-150"

@@ -20,15 +20,30 @@ export default function App() {
   const setOfficer = useStore((s) => s.setOfficer)
   const officers = useStore((s) => s.officers)
   const toast = useStore((s) => s.toast)
+  const online = useStore((s) => s.online)
+  const pendingCount = useStore((s) => s.pendingCount)
+  const bootstrap = useStore((s) => s.bootstrap)
   const reloadParticipants = useStore((s) => s.reloadParticipants)
+  const refreshAll = useStore((s) => s.refreshAll)
+
+  useEffect(() => {
+    bootstrap()
+  }, [bootstrap])
 
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === 'llm-participants-v1' && e.newValue !== e.oldValue) reloadParticipants()
     }
+    const onFocus = () => {
+      refreshAll()
+    }
     window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [reloadParticipants])
+    window.addEventListener('focus', onFocus)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [reloadParticipants, refreshAll])
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -84,6 +99,20 @@ export default function App() {
         {tab === 'lookup' && <Lookup />}
         {tab === 'dashboard' && <Dashboard />}
       </main>
+
+      {!online && (
+        <div className="q-rise-sm fixed bottom-16 left-1/2 -translate-x-1/2 z-40 bg-amber-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm flex items-center gap-2">
+          <span>Offline — changes saved locally</span>
+          {pendingCount > 0 && (
+            <button
+              onClick={() => bootstrap()}
+              className="bg-white/20 hover:bg-white/30 rounded px-2 py-0.5 font-semibold"
+            >
+              Sync {pendingCount} pending
+            </button>
+          )}
+        </div>
+      )}
 
       {toast && (
         <div

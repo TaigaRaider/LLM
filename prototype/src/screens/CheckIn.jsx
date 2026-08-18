@@ -32,8 +32,8 @@ export default function CheckIn() {
     }
   }
 
-  const doCheckIn = () => {
-    const newBags = checkIn(found.id, bagCount)
+  const doCheckIn = async () => {
+    const newBags = await checkIn(found.id, bagCount)
     setResult({ bags: newBags, participant: found })
     setBagCount(1)
     setQuery('')
@@ -84,9 +84,9 @@ export default function CheckIn() {
                       <StatusBadge status={b.status} />
                       {b.status === 'CHECKED_IN' && (
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             if (!window.confirm(`Remove tag ${b.tagCode} and reduce ${participantBags.length} checked-in bag${participantBags.length !== 1 ? 's' : ''} to ${participantBags.length - 1}?`)) return
-                            const res = removeBag(b.tagCode)
+                            const res = await removeBag(b.tagCode)
                             showToast(res.ok ? `${res.reason} ✓` : res.reason)
                           }}
                           className="ml-0.5 px-1.5 text-slate-400 hover:text-red-600 leading-none transition-colors"

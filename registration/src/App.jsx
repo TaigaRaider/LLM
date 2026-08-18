@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { useStore, STORAGE_KEY, sampleParticipants } from './store'
+import { useEffect, useRef, useState } from 'react'
+import { useStore, sampleParticipants } from './store'
 
 function download(blob, filename) {
   const url = URL.createObjectURL(blob)
@@ -82,6 +82,20 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [error, setError] = useState(null)
   const [toast, setToast] = useState(null)
+  const online = useStore((s) => s.online)
+  const pendingCount = useStore((s) => s.pendingCount)
+  const bootstrap = useStore((s) => s.bootstrap)
+  const refresh = useStore((s) => s.refresh)
+
+  useEffect(() => {
+    bootstrap()
+  }, [bootstrap])
+
+  useEffect(() => {
+    const onFocus = () => refresh()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [refresh])
 
   const showToast = (msg) => {
     setToast(msg)
@@ -101,7 +115,7 @@ export default function App() {
     setError(null)
   }
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
     const name = form.name.trim()
     if (!name) return setError('Name is required')
@@ -110,20 +124,28 @@ export default function App() {
       (p) => p.idNumber.toLowerCase() === idNumber.toLowerCase() && p.id !== form.id
     )
     if (dup) return setError(`ID number ${idNumber} is already registered to ${dup.name}`)
-    if (isEdit) {
-      update(form.id, { name, idNumber, phone: form.phone.trim(), group: form.group.trim() })
-      showToast(`${name} updated`)
-    } else {
-      add({ name, idNumber, phone: form.phone.trim(), group: form.group.trim() })
-      showToast(`${name} registered — ID ${idNumber}`)
+    try {
+      if (isEdit) {
+        await update(form.id, { name, idNumber, phone: form.phone.trim(), group: form.group.trim() })
+        showToast(`${name} updated`)
+      } else {
+        await add({ name, idNumber, phone: form.phone.trim(), group: form.group.trim() })
+        showToast(`${name} registered — ID ${idNumber}`)
+      }
+      resetForm()
+    } catch (err) {
+      setError(err.message)
     }
-    resetForm()
   }
 
-  const onDelete = (p) => {
+  const onDelete = async (p) => {
     if (!window.confirm(`Delete ${p.name} (${p.idNumber})?`)) return
-    remove(p.id)
-    showToast(`${p.name} removed`)
+    try {
+      await remove(p.id)
+      showToast(`${p.name} removed`)
+    } catch (err) {
+      showToast(err.message)
+    }
   }
 
   const exportCsv = () => {
@@ -150,8 +172,8 @@ export default function App() {
       const raw = file.name.toLowerCase().endsWith('.csv') ? parseCsv(text) : JSON.parse(text)
       if (!Array.isArray(raw)) throw new Error('Not a list of participants')
       if (!raw.length) throw new Error('File contains no participants')
-      importAll(raw)
-      showToast(`Imported ${raw.length} participant${raw.length !== 1 ? 's' : ''}`)
+      const imported = await importAll(raw)
+      showToast(`Imported ${imported.length} participant${imported.length !== 1 ? 's' : ''}`)
     } catch (err) {
       showToast(`Import failed — ${err.message}`)
     }
@@ -357,10 +379,24 @@ export default function App() {
         </div>
 
         <p className="text-xs text-slate-400 text-center">
-          Data is stored in your browser ({STORAGE_KEY}). Export/import serves as a backup; when LLM is served from the
-          same origin the two apps share this list automatically.
+          Participants are stored on the LLM server. Offline edits are saved locally and sync when
+          the server is reachable again.
         </p>
       </main>
+
+      {!online && (
+        <div className="q-rise-sm fixed bottom-16 left-1/2 -translate-x-1/2 z-40 bg-amber-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm flex items-center gap-2">
+          <span>Offline — changes saved locally</span>
+          {pendingCount > 0 && (
+            <button
+              onClick={() => bootstrap()}
+              className="bg-white/20 hover:bg-white/30 rounded px-2 py-0.5 font-semibold"
+            >
+              Sync {pendingCount} pending
+            </button>
+          )}
+        </div>
+      )}
 
       {toast && (
         <div className="q-rise-sm fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2.5 rounded-lg shadow-lg text-sm z-50">

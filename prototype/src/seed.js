@@ -1,7 +1,7 @@
 export const seedOfficers = [
-  { id: 'o1', name: 'Ama Mensah', role: 'Check-in Officer' },
-  { id: 'o2', name: 'Kofi Owusu', role: 'Handover Officer' },
-  { id: 'o3', name: 'Efua Addo', role: 'Logistics Manager' },
+  { id: 'o1', username: 'ama', name: 'Ama Mensah', role: 'Check-in Officer' },
+  { id: 'o2', username: 'kofi', name: 'Kofi Owusu', role: 'Handover Officer' },
+  { id: 'o3', username: 'efua', name: 'Efua Addo', role: 'Logistics Manager' },
 ]
 
 export const seedParticipants = [

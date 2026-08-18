@@ -27,7 +27,7 @@ export default function Handover() {
     setStep(2)
   }
 
-  const onBagScan = (code) => {
+  const onBagScan = async (code) => {
     const tag = code.trim().toUpperCase()
     setBagScan('')
     if (!tag || !participant) return
@@ -36,7 +36,8 @@ export default function Handover() {
     if (bag.participantId !== participant.id) return showToast(`MISMATCH — ${tag} belongs to a different participant`)
     if (bag.status === 'HANDED_OVER') return showToast(`${tag} already handed over`)
     if (bag.status !== 'UNLOADED') return showToast(`${tag} status is ${bag.status} — cannot hand over yet`)
-    handOver(participant.id, tag)
+    const res = await handOver(participant.id, tag)
+    if (!res.ok) return showToast(res.reason)
     showToast(`${tag} handed over to ${participant.name} ✓`)
     setStep(1)
     setParticipant(null)
@@ -92,8 +93,8 @@ export default function Handover() {
                       <StatusBadge status={b.status} />
                       {b.status === 'IN_TRANSIT' && (
                         <button
-                          onClick={() => {
-                            const res = unloadBag(b.tagCode)
+                          onClick={async () => {
+                            const res = await unloadBag(b.tagCode)
                             showToast(
                               res.ok
                                 ? res.last
@@ -150,8 +151,8 @@ export default function Handover() {
         </div>
         {vehicle.status === 'IN_TRANSIT' && (
           <button
-            onClick={() => {
-              unloadAll()
+            onClick={async () => {
+              await unloadAll()
               showToast('Truck unloaded — all bags offloaded, ready to return to origin')
             }}
             className="mt-4 w-full py-3 bg-teal-600 text-white text-base font-semibold rounded-lg hover:bg-teal-700 active:scale-[0.99] transition-all duration-150"

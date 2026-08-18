@@ -156,9 +156,9 @@ export default function Dashboard() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => {
-                const list = reloadParticipants()
-                showToast(`Reloaded ${list.length} participants from registration`)
+              onClick={async () => {
+                const list = await reloadParticipants()
+                showToast(`Reloaded ${list.length} participants from backend`)
               }}
               className="px-3 py-2 text-sm border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-colors"
             >
@@ -183,7 +183,7 @@ export default function Dashboard() {
                   const text = await file.text()
                   const raw = file.name.toLowerCase().endsWith('.csv') ? parseCsv(text) : JSON.parse(text)
                   if (!Array.isArray(raw) || !raw.length) throw new Error('empty file')
-                  const loaded = importParticipants(raw)
+                  const loaded = await importParticipants(raw)
                   showToast(`Imported ${loaded.length} participant${loaded.length !== 1 ? 's' : ''}`)
                 } catch {
                   showToast('Import failed — not valid JSON/CSV')
@@ -197,9 +197,9 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-400">Every bag must belong to a registered participant.</p>
         <button
-          onClick={() => {
+          onClick={async () => {
             if (!window.confirm('Empty the entire bag database? This cannot be undone.')) return
-            reset()
+            await reset()
             showToast('Database emptied — ready for fresh check-in')
           }}
           className="px-4 py-2 text-sm border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-colors"
