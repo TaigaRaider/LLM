@@ -8,6 +8,7 @@ export default function CheckIn() {
   const participants = useStore((s) => s.participants)
   const bags = useStore((s) => s.bags)
   const checkIn = useStore((s) => s.checkIn)
+  const removeBag = useStore((s) => s.removeBag)
   const showToast = useStore((s) => s.showToast)
 
   const [query, setQuery] = useState('')
@@ -16,8 +17,8 @@ export default function CheckIn() {
   const [bagCount, setBagCount] = useState(1)
   const [result, setResult] = useState(null)
 
-  const search = () => {
-    const q = query.trim().toLowerCase()
+  const search = (code) => {
+    const q = (code ?? query).trim().toLowerCase()
     if (!q) return
     const hit = participants.find((p) => p.name.toLowerCase().includes(q) || p.idNumber.includes(q) || p.phone.includes(q))
     if (hit) {
@@ -76,10 +77,23 @@ export default function CheckIn() {
                   {participantBags.map((b) => (
                     <span
                       key={b.tagCode}
-                      className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-700 bg-white border border-slate-200 rounded-md px-2 py-1"
+                      className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-700 bg-white border border-slate-200 rounded-md pl-2 pr-1 py-1"
                     >
                       {b.tagCode}
                       <StatusBadge status={b.status} />
+                      {b.status === 'CHECKED_IN' && (
+                        <button
+                          onClick={() => {
+                            if (!window.confirm(`Remove tag ${b.tagCode} and reduce ${participantBags.length} checked-in bag${participantBags.length !== 1 ? 's' : ''} to ${participantBags.length - 1}?`)) return
+                            const res = removeBag(b.tagCode)
+                            showToast(res.ok ? `${res.reason} ✓` : res.reason)
+                          }}
+                          className="ml-0.5 px-1.5 text-slate-400 hover:text-red-600 leading-none transition-colors"
+                          aria-label={`Remove ${b.tagCode}`}
+                        >
+                          ×
+                        </button>
+                      )}
                     </span>
                   ))}
                 </div>
@@ -94,8 +108,9 @@ export default function CheckIn() {
           <label className="block text-sm font-medium text-slate-700 mb-3">Bags to register</label>
           <div className="flex items-center justify-center gap-5">
             <button
-              onClick={() => setBagCount(Math.max(1, bagCount - 1))}
-              className="w-11 h-11 rounded-lg border border-slate-300 text-xl text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+              onClick={() => setBagCount(Math.max(0, bagCount - 1))}
+              disabled={bagCount === 0}
+              className="w-11 h-11 rounded-lg border border-slate-300 text-xl text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed"
               aria-label="Fewer bags"
             >
               −
@@ -116,13 +131,18 @@ export default function CheckIn() {
           </div>
           <button
             onClick={doCheckIn}
-            className="mt-5 w-full py-3 bg-slate-900 text-white text-base font-semibold rounded-lg hover:bg-slate-800 active:scale-[0.99] transition-all duration-150"
+            disabled={bagCount === 0}
+            className="mt-5 w-full py-3 bg-slate-900 text-white text-base font-semibold rounded-lg hover:bg-slate-800 active:scale-[0.99] transition-all duration-150 disabled:opacity-40"
           >
-            Check in {bagCount} bag{bagCount > 1 ? 's' : ''}
+            Check in {bagCount} bag{bagCount !== 1 ? 's' : ''}
           </button>
-          <p className="text-xs text-slate-400 mt-2.5 text-center">
-            Tag codes auto-generated · officer &amp; timestamp recorded
-          </p>
+          {bagCount === 0 ? (
+            <p className="text-xs text-amber-600 mt-2.5 text-center font-medium">Set at least 1 bag to check in.</p>
+          ) : (
+            <p className="text-xs text-slate-400 mt-2.5 text-center">
+              Tag codes auto-generated · officer &amp; timestamp recorded
+            </p>
+          )}
         </div>
       )}
 

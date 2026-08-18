@@ -18,8 +18,8 @@ export default function Lookup() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
 
-  const search = () => {
-    const q = query.trim()
+  const search = (code) => {
+    const q = (code ?? query).trim()
     if (!q) return
     const bag = bags.find((b) => b.tagCode === q.toUpperCase())
     const participant = participants.find(

@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes q-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes q-rise-sm {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.q-rise { animation: q-rise 220ms ease-out both; }
+.q-rise-sm { animation: q-rise-sm 180ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .q-rise, .q-rise-sm { animation: none !important; }
+}

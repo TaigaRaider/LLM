@@ -16,6 +16,10 @@ common and cheapest kind. No drivers or apps are needed:
 So the entire scan flow is: **field is focused → scan → code appears → Enter fires → action happens**.
 Nothing else needs to happen in the UI.
 
+**Camera scanning is also available on every scan field** — click the camera button next to the
+field (or scan from a phone/tablet) and hold the barcode or QR code in front of the rear camera.
+When the code is decoded, it is submitted exactly as if it had been typed and Enter pressed.
+
 ## 2. Focus management (why scanning "just works")
 
 Every screen that accepts a scan **auto-focuses its input field**:
@@ -52,13 +56,13 @@ the scanner.
 ### Sample end-to-end run
 
 1. **Check-in**: type `ID-1001`, press Enter → Abena Boateng appears → set 2 bags →
-   "Check in 2 bags" → tag sheet with barcodes → Done.
-2. **Loading**: type `LLM-0007`, Enter → loaded onto TRUCK-01. Keep scanning the other
+   "Check in 2 bags" → tag sheet with barcodes → Done. The new tags start at `LLM-0001`
+   (the database starts empty — there are no pre-existing bags).
+2. **Loading**: scan `LLM-0001`, Enter → loaded onto TRUCK-01. Keep scanning the other
    `LLM-00xx` tags, then "Confirm departure".
 3. **Handover**: switch the officer to a Handover Officer → scan `ID-1001`, then `LLM-0001`
-   → bag returned. Bags must be `UNLOADED` first (use Loading → departure, then the demo
-   reset on the Dashboard if needed).
-4. **Lookup**: type `LLM-0001`, Enter → see its full history (check-in → loaded → transit →
+   → bag returned. Bags must be `UNLOADED` first (use Loading → departure first).
+4. **Lookup**: scan `LLM-0001`, Enter → see its full history (check-in → loaded → transit →
    unloaded → handed over).
 
 ## 5. Validation the system performs on scan
@@ -83,11 +87,15 @@ the scanner.
 
 ## 7. Real vs. demo codes
 
-The prototype ships with a demo dataset:
+The prototype ships with **no demo bags** — the bag database starts empty so every event
+starts from a clean slate (the Dashboard has an "Empty database" button to clear all bags).
 
-- **Participants**: `ID-1001` … `ID-1008` (Ama's seed list under **Check-in** / **Lookup**)
-- **Bags**: `LLM-0001` … `LLM-0008` (statuses vary — a few are already handed over,
-  a few unloaded, a couple still checked in)
-
-Newly checked-in bags are auto-numbered (`LLM-0009` onwards) and their tags carry a
-real Code 128 barcode ready for thermal-label printing.
+- **Participants**: supplied by the **Registration app** (`registration/`). It keeps the
+  master list in shared browser storage (`llm-participants-v1`); LLM reads it automatically
+  and falls back to a sample list (`ID-1001` … `ID-1008`) when none exists. For the shared
+  storage to work, both apps must be served from the same origin: build the registration app
+  (`cd registration && npm run build`) and open it at `http://localhost:5173/registration/`
+  on the prototype's dev server. Alternatively export JSON/CSV from the registration app and
+  import it on the LLM Dashboard.
+- **Bags**: none on load. Newly checked-in bags are auto-numbered from `LLM-0001`, and their
+  tags carry a real Code 128 barcode ready for thermal-label printing.

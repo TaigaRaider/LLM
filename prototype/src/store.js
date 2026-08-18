@@ -1,28 +1,74 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { seedBags, seedOfficers, seedParticipants } from './seed'
+import { seedOfficers, seedParticipants } from './seed'
+
+const PARTICIPANT_SOURCE_KEY = 'llm-participants-v1'
+
+function readSharedParticipants() {
+  try {
+    const raw = localStorage.getItem(PARTICIPANT_SOURCE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    const list = Array.isArray(parsed) ? parsed : parsed?.state?.participants
+    if (Array.isArray(list) && list.length) return list
+  } catch {
+    /* ignore malformed shared storage */
+  }
+  return null
+}
+
+const writeSharedParticipants = (list) => {
+  try {
+    const raw = localStorage.getItem(PARTICIPANT_SOURCE_KEY)
+    const base = raw ? JSON.parse(raw) : { state: {}, version: 0 }
+    if (!base.state || typeof base.state !== 'object') base.state = {}
+    base.state.participants = list
+    localStorage.setItem(PARTICIPANT_SOURCE_KEY, JSON.stringify(base))
+  } catch {
+    /* ignore storage failures */
+  }
+}
+
+const initialParticipants = readSharedParticipants() ?? seedParticipants
 
 const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-
-function buildSeedBags() {
-  return seedBags.map((b) => ({ ...b, timeline: [...b.timeline] }))
-}
 
 export const useStore = create(
   persist(
     (set, get) => ({
       officer: seedOfficers[0],
       officers: seedOfficers,
-      participants: seedParticipants,
-      bags: buildSeedBags(),
+      participants: initialParticipants,
+      bags: [],
       vehicle: { code: 'TRUCK-01', status: 'AT_ORIGIN' },
-      nextTagNumber: seedBags.length + 1,
+      nextTagNumber: 1,
       toast: null,
 
       setOfficer: (officer) => set({ officer }),
       showToast: (msg) => {
         set({ toast: msg })
         setTimeout(() => set({ toast: null }), 3500)
+      },
+
+      reloadParticipants: () => {
+        const participants = readSharedParticipants() ?? seedParticipants
+        set({ participants })
+        return participants
+      },
+
+      importParticipants: (list) => {
+        const participants = list
+          .map((r) => ({
+            id: typeof r.id === 'string' && r.id ? r.id : String(r.idNumber ?? r.id_number ?? r['ID Number'] ?? ''),
+            name: String(r.name ?? r.Name ?? '').trim(),
+            idNumber: String(r.idNumber ?? r.id_number ?? r['ID Number'] ?? '').trim(),
+            phone: String(r.phone ?? r.Phone ?? '').trim(),
+            group: String(r.group ?? r.Group ?? '').trim(),
+          }))
+          .filter((p) => p.name && p.id)
+        if (participants.length) writeSharedParticipants(participants)
+        set({ participants })
+        return participants
       },
 
       findParticipant: (query) => {
@@ -63,6 +109,15 @@ export const useStore = create(
         return newBags
       },
 
+      removeBag: (tagCode) => {
+        const bag = get().bags.find((b) => b.tagCode === tagCode)
+        if (!bag) return { ok: false, reason: `Tag ${tagCode} not found` }
+        if (bag.status !== 'CHECKED_IN')
+          return { ok: false, reason: `${tagCode} is ${bag.status} — can only remove bags still at check-in` }
+        set((s) => ({ bags: s.bags.filter((b) => b.tagCode !== tagCode) }))
+        return { ok: true, reason: `${tagCode} removed — check-in corrected` }
+      },
+
       loadBags: (tagCodes) => {
         const officer = get().officer.name
         const time = now()
@@ -94,11 +149,34 @@ export const useStore = create(
         }))
       },
 
+      unloadBag: (tagCode) => {
+        const officer = get().officer.name
+        const time = now()
+        const bag = get().bags.find((b) => b.tagCode === tagCode)
+        if (!bag) return { ok: false, reason: `Tag ${tagCode} not found` }
+        if (bag.status !== 'IN_TRANSIT')
+          return { ok: false, reason: `${tagCode} is ${bag.status} — can only offload bags in transit` }
+        const remainingInTransit = get().bags.filter((b) => b.status === 'IN_TRANSIT' && b.tagCode !== tagCode).length
+        set((s) => ({
+          vehicle: remainingInTransit === 0 ? { ...s.vehicle, status: 'AT_ORIGIN' } : s.vehicle,
+          bags: s.bags.map((b) =>
+            b.tagCode === tagCode
+              ? {
+                  ...b,
+                  status: 'UNLOADED',
+                  timeline: [...b.timeline, { event: 'UNLOADED', officer, time, note: 'Scanned off truck at destination' }],
+                }
+              : b
+          ),
+        }))
+        return { ok: true, returned: remainingInTransit === 0 }
+      },
+
       unloadAll: () => {
         const officer = get().officer.name
         const time = now()
         set((s) => ({
-          vehicle: { ...s.vehicle, status: 'AT_DESTINATION' },
+          vehicle: { ...s.vehicle, status: 'AT_ORIGIN' },
           bags: s.bags.map((b) =>
             b.status === 'IN_TRANSIT'
               ? { ...b, status: 'UNLOADED', timeline: [...b.timeline, { event: 'UNLOADED', officer, time, note: 'Scanned off truck at destination' }] }
@@ -129,13 +207,20 @@ export const useStore = create(
 
       reset: () =>
         set({
-          bags: buildSeedBags(),
-          participants: seedParticipants,
+          bags: [],
           vehicle: { code: 'TRUCK-01', status: 'AT_ORIGIN' },
-          nextTagNumber: seedBags.length + 1,
+          nextTagNumber: 1,
         }),
     }),
-    { name: 'llm-prototype-v1' }
+    {
+      name: 'llm-prototype-v2',
+      partialize: (s) => ({
+        officer: s.officer,
+        bags: s.bags,
+        vehicle: s.vehicle,
+        nextTagNumber: s.nextTagNumber,
+      }),
+    }
   )
 )
 

@@ -12,7 +12,7 @@ export default function Loading() {
 
   const [scan, setScan] = useState('')
 
-  const loaded = bags.filter((b) => b.status === 'LOADED' || b.status === 'IN_TRANSIT' || b.status === 'UNLOADED' || b.status === 'HANDED_OVER')
+  const onTruck = bags.filter((b) => b.status === 'LOADED' || b.status === 'IN_TRANSIT')
   const pending = bags.filter((b) => b.status === 'CHECKED_IN')
 
   const onScan = (code) => {
@@ -53,7 +53,7 @@ export default function Loading() {
         <div className="flex gap-6 mt-4 text-sm">
           <span className="text-slate-500">
             Loaded on truck:{' '}
-            <b className="text-lg text-slate-900 tabular-nums ml-1">{loaded.length}</b>
+            <b className="text-lg text-slate-900 tabular-nums ml-1">{onTruck.length}</b>
           </span>
           <span className="text-slate-500">
             Awaiting load:{' '}
@@ -76,7 +76,7 @@ export default function Loading() {
       {vehicle.status !== 'AT_ORIGIN' && (
         <div className="q-rise-sm bg-white rounded-xl border border-slate-200 p-5">
           <h3 className="font-semibold text-slate-900 mb-3">
-            Vehicle manifest — {vehicle.code} ({loaded.length} bags)
+            Vehicle manifest — {vehicle.code} ({onTruck.length} bags)
           </h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -89,7 +89,7 @@ export default function Loading() {
                 </tr>
               </thead>
               <tbody>
-                {loaded.map((b) => {
+                {onTruck.map((b) => {
                   const p = useStore.getState().participants.find((x) => x.id === b.participantId)
                   return (
                     <tr key={b.tagCode} className="border-b border-slate-100 last:border-0">

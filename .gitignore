@@ -1,3 +1,8 @@
 .opencode/vendor/
 prototype/node_modules/
 prototype/dist/
+prototype/public/registration/
+registration/node_modules/
+registration/dist/
+participant exports/
+paritcipant exports/

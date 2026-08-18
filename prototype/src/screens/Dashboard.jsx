@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useStore } from '../store'
 import StatusBadge from '../components/StatusBadge'
 
@@ -6,7 +7,10 @@ export default function Dashboard() {
   const participants = useStore((s) => s.participants)
   const vehicle = useStore((s) => s.vehicle)
   const reset = useStore((s) => s.reset)
+  const reloadParticipants = useStore((s) => s.reloadParticipants)
+  const importParticipants = useStore((s) => s.importParticipants)
   const showToast = useStore((s) => s.showToast)
+  const fileRef = useRef(null)
 
   const checkedIn = bags.length
   const handedOver = bags.filter((b) => b.status === 'HANDED_OVER').length
@@ -59,8 +63,8 @@ export default function Dashboard() {
           <span className="text-sm font-medium text-slate-600">{vehicle.status.replace('_', ' ')}</span>
         </div>
         <p className="text-sm text-slate-500 tabular-nums">
-          {bags.filter((b) => b.vehicle === 'TRUCK-01').length} bags assigned · {participants.length} participants
-          loaded from demo dataset
+          {bags.filter((b) => b.vehicle === 'TRUCK-01').length} bags assigned · {participants.length} registered
+          participants
         </p>
       </div>
 
@@ -91,15 +95,63 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="flex justify-end">
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="font-semibold text-slate-900">Participants</h3>
+            <p className="text-sm text-slate-500 mt-0.5 tabular-nums">
+              {participants.length} registered — supplied by the Registration app (shared storage)
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const list = reloadParticipants()
+                showToast(`Reloaded ${list.length} participants from registration`)
+              }}
+              className="px-3 py-2 text-sm border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+            >
+              Reload from registration
+            </button>
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="px-3 py-2 text-sm border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+            >
+              Import JSON
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".json,.csv"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (!file) return
+                try {
+                  const text = await file.text()
+                  let raw = JSON.parse(text)
+                  const loaded = importParticipants(raw)
+                  showToast(`Imported ${loaded.length} participant${loaded.length !== 1 ? 's' : ''}`)
+                } catch {
+                  showToast('Import failed — not valid JSON')
+                }
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-slate-400">Every bag must belong to a registered participant.</p>
         <button
           onClick={() => {
             reset()
-            showToast('Demo data reset to seed state')
+            showToast('Database emptied — ready for fresh check-in')
           }}
           className="px-4 py-2 text-sm border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-colors"
         >
-          Reset demo data
+          Empty database
         </button>
       </div>
     </div>

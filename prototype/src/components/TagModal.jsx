@@ -4,15 +4,17 @@ import JsBarcode from 'jsbarcode'
 export function TagItem({ bag, participant }) {
   const ref = useRef(null)
   useEffect(() => {
-    if (ref.current) {
-      JsBarcode(ref.current, bag.tagCode, { format: 'CODE128', width: 2, height: 60, displayValue: false })
-    }
+    const el = ref.current
+    if (!el) return
+    const available = (el.parentElement?.clientWidth ?? 400) - 40
+    const barWidth = Math.max(0.8, Math.min(2, available / 128))
+    JsBarcode(el, bag.tagCode, { format: 'CODE128', width: barWidth, height: 50, displayValue: false, margin: 8 })
   }, [bag.tagCode])
   return (
     <div className="border-2 border-dashed border-slate-300 rounded-lg p-3 text-center break-inside-avoid">
       <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">Luggage tag</div>
       <div className="font-mono text-xl font-bold text-slate-900">{bag.tagCode}</div>
-      <svg ref={ref} className="mx-auto my-2" />
+      <svg ref={ref} className="mx-auto my-2 block" />
       <div className="text-sm font-medium text-slate-700">{participant.name}</div>
       <div className="text-xs text-slate-500">{participant.idNumber}</div>
     </div>

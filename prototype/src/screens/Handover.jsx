@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { useStore } from '../store'
 import BarcodeInput from '../components/BarcodeInput'
+import StatusBadge from '../components/StatusBadge'
 
 export default function Handover() {
   const participants = useStore((s) => s.participants)
   const bags = useStore((s) => s.bags)
   const handOver = useStore((s) => s.handOver)
+  const unloadBag = useStore((s) => s.unloadBag)
+  const unloadAll = useStore((s) => s.unloadAll)
   const showToast = useStore((s) => s.showToast)
   const vehicle = useStore((s) => s.vehicle)
 
@@ -40,6 +43,7 @@ export default function Handover() {
   }
 
   const outstanding = bags.filter((b) => b.status === 'UNLOADED' && b.participantId === participant?.id)
+  const participantBags = participant ? bags.filter((b) => b.participantId === participant.id) : []
 
   return (
     <div className="space-y-4">
@@ -67,6 +71,47 @@ export default function Handover() {
               </span>
             </div>
             <BarcodeInput label="Scan bag tag to return" value={bagScan} onChange={setBagScan} onScan={onBagScan} autoFocus />
+            <div className="mt-4">
+              <div className="text-xs text-slate-500 mb-1.5">
+                Bags belonging to this participant ({participantBags.length})
+              </div>
+              {participantBags.length === 0 ? (
+                <p className="text-sm text-amber-600 font-medium">No bags on record for this participant.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {participantBags.map((b) => (
+                    <span
+                      key={b.tagCode}
+                      className={`inline-flex items-center gap-1.5 text-xs font-mono rounded-md pl-2 pr-1 py-1 border ${
+                        b.status === 'UNLOADED'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                          : 'border-slate-200 bg-white text-slate-700'
+                      }`}
+                    >
+                      {b.tagCode}
+                      <StatusBadge status={b.status} />
+                      {b.status === 'IN_TRANSIT' && (
+                        <button
+                          onClick={() => {
+                            const res = unloadBag(b.tagCode)
+                            showToast(
+                              res.ok
+                                ? res.returned
+                                  ? `${b.tagCode} offloaded — truck returned to origin`
+                                  : `${b.tagCode} offloaded — ready to return`
+                                : res.reason
+                            )
+                          }}
+                          className="ml-0.5 px-2 py-0.5 rounded bg-slate-900 text-white text-[11px] font-semibold hover:bg-slate-800 active:scale-[0.97] transition-colors"
+                        >
+                          Offload
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="flex justify-between items-center mt-3">
               <span className="text-sm text-slate-500 tabular-nums">
                 {outstanding.length} bag{outstanding.length !== 1 ? 's' : ''} outstanding for this participant
@@ -86,7 +131,10 @@ export default function Handover() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <h3 className="font-semibold text-slate-900 mb-3">Bag status for {vehicle.code}</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-slate-900">Bag status for {vehicle.code}</h3>
+          <span className="text-xs font-semibold text-slate-600">{vehicle.status.replace('_', ' ')}</span>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
           {[
             { label: 'On truck (transit)', count: bags.filter((b) => b.status === 'IN_TRANSIT').length },
@@ -100,6 +148,17 @@ export default function Handover() {
             </div>
           ))}
         </div>
+        {vehicle.status === 'IN_TRANSIT' && (
+          <button
+            onClick={() => {
+              unloadAll()
+              showToast('Truck unloaded — all bags offloaded, truck returned to origin')
+            }}
+            className="mt-4 w-full py-3 bg-teal-600 text-white text-base font-semibold rounded-lg hover:bg-teal-700 active:scale-[0.99] transition-all duration-150"
+          >
+            Confirm arrival (offload all bags)
+          </button>
+        )}
       </div>
     </div>
   )
