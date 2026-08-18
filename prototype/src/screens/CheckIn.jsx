@@ -24,10 +24,11 @@ export default function CheckIn() {
     if (hit) {
       setFound(hit)
       setNotFound(false)
+      setQuery('')
     } else {
       setFound(null)
       setNotFound(true)
-      showToast(`No participant found for “${query.trim()}”`)
+      showToast(`No participant found for “${q}”`)
     }
   }
 
@@ -56,7 +57,7 @@ export default function CheckIn() {
         <BarcodeInput label="Scan ID card or search" value={query} onChange={setQuery} onScan={search} autoFocus />
         {notFound && (
           <p className="q-rise-sm mt-3 text-sm text-red-600 font-medium">
-            No participant found for “{query.trim()}” — check the registration list.
+            No participant found — check the registration list.
           </p>
         )}
         {found && (

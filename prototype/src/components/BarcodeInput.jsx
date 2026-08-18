@@ -31,6 +31,11 @@ export default function BarcodeInput({ label, value, onChange, onScan, placehold
           }}
           placeholder={placeholder ?? 'Scan or type…'}
           disabled={disabled}
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          inputMode="text"
           className="flex-1 min-w-0 border border-slate-300 rounded-lg px-3 py-2.5 text-lg tracking-wider focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors disabled:bg-slate-50 disabled:text-slate-400"
         />
         <button

@@ -8,6 +8,7 @@ export default function Loading() {
   const vehicle = useStore((s) => s.vehicle)
   const loadBags = useStore((s) => s.loadBags)
   const depart = useStore((s) => s.depart)
+  const returnToOrigin = useStore((s) => s.returnToOrigin)
   const showToast = useStore((s) => s.showToast)
 
   const [scan, setScan] = useState('')
@@ -24,6 +25,16 @@ export default function Loading() {
     if (bag.status !== 'CHECKED_IN') return showToast(`${tag} is ${bag.status} — already loaded`)
     loadBags([tag])
     showToast(`${tag} loaded onto ${vehicle.code} ✓`)
+  }
+
+  const confirmDeparture = () => {
+    if (onTruck.length === 0) {
+      if (!window.confirm('No bags are loaded on the truck. Confirm departure anyway?')) return
+    } else if (pending.length > 0) {
+      if (!window.confirm(`${pending.length} checked-in bag${pending.length !== 1 ? 's' : ''} are not loaded yet. Depart without them?`)) return
+    }
+    depart()
+    showToast('Manifest locked — truck departed')
   }
 
   const truckState = {
@@ -62,13 +73,21 @@ export default function Loading() {
         </div>
         {vehicle.status === 'AT_ORIGIN' && (
           <button
-            onClick={() => {
-              depart()
-              showToast('Manifest locked — truck departed')
-            }}
+            onClick={confirmDeparture}
             className="mt-4 w-full py-3 bg-amber-500 text-white text-base font-semibold rounded-lg hover:bg-amber-600 active:scale-[0.99] transition-all duration-150"
           >
             Confirm departure (lock manifest)
+          </button>
+        )}
+        {vehicle.status === 'AT_DESTINATION' && (
+          <button
+            onClick={() => {
+              returnToOrigin()
+              showToast(`${vehicle.code} returned to origin — ready to load`)
+            }}
+            className="mt-4 w-full py-3 bg-teal-600 text-white text-base font-semibold rounded-lg hover:bg-teal-700 active:scale-[0.99] transition-all duration-150"
+          >
+            Return {vehicle.code} to origin
           </button>
         )}
       </div>
@@ -94,8 +113,8 @@ export default function Loading() {
                   return (
                     <tr key={b.tagCode} className="border-b border-slate-100 last:border-0">
                       <td className="py-2 pr-3 font-mono text-slate-800">{b.tagCode}</td>
-                      <td className="py-2 pr-3 text-slate-700">{p.name}</td>
-                      <td className="py-2 pr-3 text-slate-500">{p.idNumber}</td>
+                      <td className="py-2 pr-3 text-slate-700">{p?.name ?? 'Unknown participant'}</td>
+                      <td className="py-2 pr-3 text-slate-500">{p?.idNumber ?? '—'}</td>
                       <td className="py-2">
                         <StatusBadge status={b.status} />
                       </td>

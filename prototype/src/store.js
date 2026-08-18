@@ -33,6 +33,8 @@ const initialParticipants = readSharedParticipants() ?? seedParticipants
 
 const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 
+const uid = () => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+
 export const useStore = create(
   persist(
     (set, get) => ({
@@ -57,15 +59,20 @@ export const useStore = create(
       },
 
       importParticipants: (list) => {
+        const seen = new Set()
         const participants = list
           .map((r) => ({
-            id: typeof r.id === 'string' && r.id ? r.id : String(r.idNumber ?? r.id_number ?? r['ID Number'] ?? ''),
+            id: typeof r.id === 'string' && r.id ? r.id : uid(),
             name: String(r.name ?? r.Name ?? '').trim(),
             idNumber: String(r.idNumber ?? r.id_number ?? r['ID Number'] ?? '').trim(),
             phone: String(r.phone ?? r.Phone ?? '').trim(),
             group: String(r.group ?? r.Group ?? '').trim(),
           }))
-          .filter((p) => p.name && p.id)
+          .filter((p) => {
+            if (!p.name || seen.has(p.idNumber.toLowerCase())) return false
+            if (p.idNumber) seen.add(p.idNumber.toLowerCase())
+            return true
+          })
         if (participants.length) writeSharedParticipants(participants)
         set({ participants })
         return participants
@@ -89,7 +96,9 @@ export const useStore = create(
       checkIn: (participantId, bagCount) => {
         const officer = get().officer.name
         const time = now()
+        const existing = new Set(get().bags.map((b) => b.tagCode))
         let n = get().nextTagNumber
+        while (existing.has(`LLM-${String(n).padStart(4, '0')}`)) n++
         const newBags = []
         for (let i = 0; i < bagCount; i++) {
           const tagCode = `LLM-${String(n).padStart(4, '0')}`
@@ -158,7 +167,7 @@ export const useStore = create(
           return { ok: false, reason: `${tagCode} is ${bag.status} — can only offload bags in transit` }
         const remainingInTransit = get().bags.filter((b) => b.status === 'IN_TRANSIT' && b.tagCode !== tagCode).length
         set((s) => ({
-          vehicle: remainingInTransit === 0 ? { ...s.vehicle, status: 'AT_ORIGIN' } : s.vehicle,
+          vehicle: remainingInTransit === 0 ? { ...s.vehicle, status: 'AT_DESTINATION' } : s.vehicle,
           bags: s.bags.map((b) =>
             b.tagCode === tagCode
               ? {
@@ -169,14 +178,14 @@ export const useStore = create(
               : b
           ),
         }))
-        return { ok: true, returned: remainingInTransit === 0 }
+        return { ok: true, last: remainingInTransit === 0 }
       },
 
       unloadAll: () => {
         const officer = get().officer.name
         const time = now()
         set((s) => ({
-          vehicle: { ...s.vehicle, status: 'AT_ORIGIN' },
+          vehicle: { ...s.vehicle, status: 'AT_DESTINATION' },
           bags: s.bags.map((b) =>
             b.status === 'IN_TRANSIT'
               ? { ...b, status: 'UNLOADED', timeline: [...b.timeline, { event: 'UNLOADED', officer, time, note: 'Scanned off truck at destination' }] }
@@ -184,6 +193,9 @@ export const useStore = create(
           ),
         }))
       },
+
+      returnToOrigin: () =>
+        set((s) => ({ vehicle: { ...s.vehicle, status: 'AT_ORIGIN' } })),
 
       handOver: (participantId, tagCode) => {
         const officer = get().officer.name

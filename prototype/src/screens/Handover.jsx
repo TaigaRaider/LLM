@@ -96,9 +96,9 @@ export default function Handover() {
                             const res = unloadBag(b.tagCode)
                             showToast(
                               res.ok
-                                ? res.returned
-                                  ? `${b.tagCode} offloaded — truck returned to origin`
-                                  : `${b.tagCode} offloaded — ready to return`
+                                ? res.last
+                                  ? `${b.tagCode} offloaded — last bag, truck ready to return`
+                                  : `${b.tagCode} offloaded`
                                 : res.reason
                             )
                           }}
@@ -152,7 +152,7 @@ export default function Handover() {
           <button
             onClick={() => {
               unloadAll()
-              showToast('Truck unloaded — all bags offloaded, truck returned to origin')
+              showToast('Truck unloaded — all bags offloaded, ready to return to origin')
             }}
             className="mt-4 w-full py-3 bg-teal-600 text-white text-base font-semibold rounded-lg hover:bg-teal-700 active:scale-[0.99] transition-all duration-150"
           >

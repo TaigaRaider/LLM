@@ -28,13 +28,14 @@ export default function Lookup() {
     if (bag || participant) {
       setResult({ bag, participant })
       setError(null)
+      setQuery('')
     } else {
       setResult(null)
       setError(`Nothing found for “${q}”`)
     }
   }
 
-  const ownerOf = (id) => participants.find((p) => p.id === id)
+  const ownerOf = (id) => participants.find((p) => p.id === id) ?? { name: 'Unknown participant', idNumber: '—' }
 
   return (
     <div className="space-y-4">

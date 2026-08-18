@@ -52,7 +52,14 @@ export default function CameraScanner({ onScan, onClose }) {
 
     const startScanning = async () => {
       const cameraId = await pickCameraId()
-      const config = { fps: 10, qrbox: { width: 260, height: 180 }, formatsToSupport: FORMATS }
+      const config = {
+        fps: 10,
+        qrbox: (viewfinderWidth, viewfinderHeight) => ({
+          width: Math.min(260, viewfinderWidth - 24),
+          height: Math.min(180, viewfinderHeight - 24),
+        }),
+        formatsToSupport: FORMATS,
+      }
       await scanner.start(
         cameraId ? { deviceId: { exact: cameraId } } : { facingMode: 'environment' },
         config,

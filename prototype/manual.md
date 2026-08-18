@@ -57,12 +57,17 @@ the scanner.
 
 1. **Check-in**: type `ID-1001`, press Enter → Abena Boateng appears → set 2 bags →
    "Check in 2 bags" → tag sheet with barcodes → Done. The new tags start at `LLM-0001`
-   (the database starts empty — there are no pre-existing bags).
+   (the database starts empty — there are no pre-existing bags). The field clears itself
+   after every successful scan so a USB scanner never appends to a previous code.
 2. **Loading**: scan `LLM-0001`, Enter → loaded onto TRUCK-01. Keep scanning the other
-   `LLM-00xx` tags, then "Confirm departure".
-3. **Handover**: switch the officer to a Handover Officer → scan `ID-1001`, then `LLM-0001`
-   → bag returned. Bags must be `UNLOADED` first (use Loading → departure first).
-4. **Lookup**: scan `LLM-0001`, Enter → see its full history (check-in → loaded → transit →
+   `LLM-00xx` tags, then "Confirm departure" (it warns if nothing is loaded or bags are
+   left behind).
+3. **Truck returns**: at destination, **Handover** offloads the truck ("Confirm arrival"
+   or scan/offload each bag) — the truck is now `AT DESTINATION`. Switch to **Loading**
+   and press "Return TRUCK-01 to origin" before the next batch can be loaded.
+4. **Handover**: switch the officer to a Handover Officer → scan `ID-1001`, then `LLM-0001`
+   → bag returned. Bags must be `UNLOADED` first (Loading → departure → offload first).
+5. **Lookup**: scan `LLM-0001`, Enter → see its full history (check-in → loaded → transit →
    unloaded → handed over).
 
 ## 5. Validation the system performs on scan
@@ -84,6 +89,7 @@ the scanner.
 | Letters/characters missing from code | Keyboard layout mismatch | Set the device keyboard layout to the language the scanner emulates (US English) |
 | Scan goes to the wrong field | Focus is in another field (e.g., stepper button) | Re-click the scan field; after each action the correct field re-focuses |
 | Scan submits too early / code split in two | Scanner suffix is `Tab` or sends characters slowly | Configure suffix to `Enter` only |
+| Camera button does nothing / camera won't start | Browser requires a secure context | Open the app over **HTTPS** or `localhost` — cameras are blocked on plain `http://192.168.x.x`. On phones also allow camera permission when prompted |
 
 ## 7. Real vs. demo codes
 
@@ -92,10 +98,11 @@ starts from a clean slate (the Dashboard has an "Empty database" button to clear
 
 - **Participants**: supplied by the **Registration app** (`registration/`). It keeps the
   master list in shared browser storage (`llm-participants-v1`); LLM reads it automatically
-  and falls back to a sample list (`ID-1001` … `ID-1008`) when none exists. For the shared
-  storage to work, both apps must be served from the same origin: build the registration app
+  (and live — if both apps are open in tabs, LLM picks up changes as they happen) and falls
+  back to a sample list (`ID-1001` … `ID-1008`) when none exists. For the shared storage to
+  work, both apps must be served from the same origin: build the registration app
   (`cd registration && npm run build`) and open it at `http://localhost:5173/registration/`
   on the prototype's dev server. Alternatively export JSON/CSV from the registration app and
-  import it on the LLM Dashboard.
+  import it on the LLM Dashboard (both formats supported; duplicates are dropped).
 - **Bags**: none on load. Newly checked-in bags are auto-numbered from `LLM-0001`, and their
   tags carry a real Code 128 barcode ready for thermal-label printing.

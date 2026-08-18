@@ -2,6 +2,57 @@ import { useRef } from 'react'
 import { useStore } from '../store'
 import StatusBadge from '../components/StatusBadge'
 
+function parseCsv(text) {
+  const rows = []
+  let row = []
+  let cell = ''
+  let inQuotes = false
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"'
+          i++
+        } else {
+          inQuotes = false
+        }
+      } else {
+        cell += c
+      }
+    } else if (c === '"') {
+      inQuotes = true
+    } else if (c === ',') {
+      row.push(cell)
+      cell = ''
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++
+      row.push(cell)
+      if (row.some((v) => v.trim() !== '')) rows.push(row)
+      row = []
+      cell = ''
+    } else {
+      cell += c
+    }
+  }
+  row.push(cell)
+  if (row.some((v) => v.trim() !== '')) rows.push(row)
+
+  const header = rows[0].map((h) => h.toLowerCase())
+  return rows.slice(1).map((r) => {
+    const get = (name) => {
+      const i = header.indexOf(name)
+      return i >= 0 ? r[i] ?? '' : ''
+    }
+    return {
+      name: get('name'),
+      idNumber: get('id number'),
+      phone: get('phone'),
+      group: get('group'),
+    }
+  })
+}
+
 export default function Dashboard() {
   const bags = useStore((s) => s.bags)
   const participants = useStore((s) => s.participants)
@@ -63,7 +114,7 @@ export default function Dashboard() {
           <span className="text-sm font-medium text-slate-600">{vehicle.status.replace('_', ' ')}</span>
         </div>
         <p className="text-sm text-slate-500 tabular-nums">
-          {bags.filter((b) => b.vehicle === 'TRUCK-01').length} bags assigned · {participants.length} registered
+          {bags.filter((b) => b.vehicle === vehicle.code).length} bags assigned · {participants.length} registered
           participants
         </p>
       </div>
@@ -85,7 +136,7 @@ export default function Dashboard() {
                   >
                     <div>
                       <span className="font-mono font-semibold text-slate-900">{b.tagCode}</span>
-                      <span className="text-sm text-slate-600 ml-3">{p.name}</span>
+                      <span className="text-sm text-slate-600 ml-3">{p?.name ?? 'Unknown participant'}</span>
                     </div>
                     <StatusBadge status={b.status} />
                   </div>
@@ -130,11 +181,12 @@ export default function Dashboard() {
                 if (!file) return
                 try {
                   const text = await file.text()
-                  let raw = JSON.parse(text)
+                  const raw = file.name.toLowerCase().endsWith('.csv') ? parseCsv(text) : JSON.parse(text)
+                  if (!Array.isArray(raw) || !raw.length) throw new Error('empty file')
                   const loaded = importParticipants(raw)
                   showToast(`Imported ${loaded.length} participant${loaded.length !== 1 ? 's' : ''}`)
                 } catch {
-                  showToast('Import failed — not valid JSON')
+                  showToast('Import failed — not valid JSON/CSV')
                 }
               }}
             />
@@ -146,6 +198,7 @@ export default function Dashboard() {
         <p className="text-xs text-slate-400">Every bag must belong to a registered participant.</p>
         <button
           onClick={() => {
+            if (!window.confirm('Empty the entire bag database? This cannot be undone.')) return
             reset()
             showToast('Database emptied — ready for fresh check-in')
           }}

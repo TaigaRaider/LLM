@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore, STATUS_META } from './store'
 import CheckIn from './screens/CheckIn'
 import Loading from './screens/Loading'
@@ -20,6 +20,15 @@ export default function App() {
   const setOfficer = useStore((s) => s.setOfficer)
   const officers = useStore((s) => s.officers)
   const toast = useStore((s) => s.toast)
+  const reloadParticipants = useStore((s) => s.reloadParticipants)
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'llm-participants-v1' && e.newValue !== e.oldValue) reloadParticipants()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [reloadParticipants])
 
   return (
     <div className="min-h-screen bg-slate-100">
