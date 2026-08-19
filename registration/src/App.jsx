@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore, sampleParticipants } from './store'
+import Login from './screens/Login'
+import ChangePassword from './screens/ChangePassword'
 
 function download(blob, filename) {
   const url = URL.createObjectURL(blob)
@@ -86,6 +88,9 @@ export default function App() {
   const pendingCount = useStore((s) => s.pendingCount)
   const bootstrap = useStore((s) => s.bootstrap)
   const refresh = useStore((s) => s.refresh)
+  const officer = useStore((s) => s.officer)
+  const logout = useStore((s) => s.logout)
+  const mustChangePassword = useStore((s) => s.mustChangePassword)
 
   useEffect(() => {
     bootstrap()
@@ -96,6 +101,26 @@ export default function App() {
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [refresh])
+
+  if (!officer || !Array.isArray(officer.permissions)) return <Login />
+  if (mustChangePassword || officer.must_change_password) return <ChangePassword />
+  if (!(officer.permissions || []).includes('admin'))
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
+        <div className="q-rise w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
+          <h1 className="text-lg font-semibold text-slate-900 mb-2">Access denied</h1>
+          <p className="text-sm text-slate-500 mb-5">
+            {officer.name} ({officer.role}) — participant registration requires the Logistics Manager role.
+          </p>
+          <button
+            onClick={() => logout()}
+            className="px-4 py-2 text-sm border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    )
 
   const showToast = (msg) => {
     setToast(msg)
@@ -205,6 +230,16 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <div className="text-right leading-tight mr-1">
+              <div className="text-sm font-medium text-slate-800">{officer.name}</div>
+              <div className="text-[10px] text-slate-400">{officer.role}</div>
+            </div>
+            <button
+              onClick={() => logout()}
+              className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+            >
+              Sign out
+            </button>
             <button
               onClick={exportJson}
               disabled={!participants.length}

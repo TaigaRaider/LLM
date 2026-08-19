@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Officer, Participant
 from ..schemas import ParticipantIn, ParticipantOut, ParticipantUpdate
-from ..security import current_officer
+from ..permissions import require_perms
 
 router = APIRouter(prefix="/api/participants", tags=["participants"])
 
@@ -25,7 +25,7 @@ def list_participants(
     active_only: bool = False,
     include_inactive: bool = False,
     db: Session = Depends(get_db),
-    _: Officer = Depends(current_officer),
+    _: Officer = Depends(require_perms("admin")),
 ):
     q = db.query(Participant)
     if search:
@@ -48,7 +48,7 @@ def list_participants(
 def create_participant(
     body: ParticipantIn,
     db: Session = Depends(get_db),
-    _: Officer = Depends(current_officer),
+    _: Officer = Depends(require_perms("admin")),
 ):
     name = body.name.strip()
     if not name:
@@ -75,7 +75,7 @@ def create_participant(
 def bulk_create_participants(
     items: list[ParticipantIn],
     db: Session = Depends(get_db),
-    _: Officer = Depends(current_officer),
+    _: Officer = Depends(require_perms("admin")),
 ):
     created = []
     existing_numbers = {p.id_number for p in db.query(Participant).all()}
@@ -108,7 +108,7 @@ def update_participant(
     participant_id: str,
     body: ParticipantUpdate,
     db: Session = Depends(get_db),
-    _: Officer = Depends(current_officer),
+    _: Officer = Depends(require_perms("admin")),
 ):
     participant = db.get(Participant, participant_id)
     if not participant:
@@ -139,7 +139,7 @@ def update_participant(
 def delete_participant(
     participant_id: str,
     db: Session = Depends(get_db),
-    _: Officer = Depends(current_officer),
+    _: Officer = Depends(require_perms("admin")),
 ):
     participant = db.get(Participant, participant_id)
     if not participant:

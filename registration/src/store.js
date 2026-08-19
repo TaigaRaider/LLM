@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { api, ApiError } from './api'
+import { api, ApiError, changePassword, getStoredOfficer, loginOfficer, logout } from './api'
 
 export const STORAGE_KEY = 'llm-participants-v1'
 const PENDING_KEY = 'llm_reg_pending_ops'
@@ -59,9 +59,12 @@ const isClientError = (err) => err instanceof ApiError && err.status >= 400 && e
 export const useStore = create(
   persist(
     (set, get) => ({
+      officer: getStoredOfficer(),
       participants: [],
       online: false,
       pendingCount: 0,
+      mustChangePassword: false,
+      loginError: null,
 
       queueOp: (op) => {
         const ops = [...loadPending(), op]
@@ -93,16 +96,44 @@ export const useStore = create(
           const list = await api('/participants')
           set({ participants: list.map(normalize), online: true })
           return true
-        } catch {
+        } catch (err) {
           set({ online: false })
+          if (err instanceof ApiError && err.status === 403 && err.message === 'CHANGE_PASSWORD_REQUIRED') {
+            set({ mustChangePassword: true })
+          }
           return false
         }
       },
 
       bootstrap: async () => {
+        if (!getStoredOfficer()) return false
         const ok = await get().refresh()
         if (ok) await get().flushQueue()
         return ok
+      },
+
+      login: async (username, password) => {
+        set({ loginError: null })
+        try {
+          const officer = await loginOfficer(username, password)
+          set({ officer, online: true, mustChangePassword: officer.must_change_password })
+          await get().refresh()
+          return officer
+        } catch (err) {
+          set({ loginError: err.message, online: false })
+          throw err
+        }
+      },
+
+      changePassword: async (currentPassword, newPassword) => {
+        const officer = await changePassword(currentPassword, newPassword)
+        set({ officer, mustChangePassword: false })
+        return officer
+      },
+
+      logout: async () => {
+        await logout()
+        set({ officer: null, online: false, mustChangePassword: false, loginError: null })
       },
 
       add: async (data) => {

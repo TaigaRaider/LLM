@@ -1,6 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 const TOKEN_KEY = 'llm_token'
-const DEFAULT_PASSWORD = 'officer123'
+const OFFICER_KEY = 'llm_officer'
 
 export class ApiError extends Error {
   constructor(status, detail) {
@@ -11,6 +11,24 @@ export class ApiError extends Error {
 
 function getToken() {
   return localStorage.getItem(TOKEN_KEY)
+}
+
+function storeToken(token) {
+  if (token) localStorage.setItem(TOKEN_KEY, token)
+  else localStorage.removeItem(TOKEN_KEY)
+}
+
+export function getStoredOfficer() {
+  try {
+    return JSON.parse(localStorage.getItem(OFFICER_KEY))
+  } catch {
+    return null
+  }
+}
+
+function storeOfficer(officer) {
+  if (officer) localStorage.setItem(OFFICER_KEY, JSON.stringify(officer))
+  else localStorage.removeItem(OFFICER_KEY)
 }
 
 export async function api(path, { method = 'GET', body } = {}) {
@@ -24,8 +42,9 @@ export async function api(path, { method = 'GET', body } = {}) {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (res.status === 401) {
-    await loginOfficer('ama')
-    return api(path, { method, body })
+    storeToken(null)
+    storeOfficer(null)
+    throw new ApiError(401, 'Not authenticated')
   }
   if (!res.ok) {
     let detail = res.statusText
@@ -41,14 +60,23 @@ export async function api(path, { method = 'GET', body } = {}) {
   return res.json()
 }
 
-export async function loginOfficer(username) {
-  const data = await fetch(`${API_BASE}/auth/login`, {
+export async function loginOfficer(username, password) {
+  const data = await api('/auth/login', { method: 'POST', body: { username, password } })
+  storeToken(data.token)
+  storeOfficer(data.officer)
+  return data.officer
+}
+
+export async function changePassword(currentPassword, newPassword) {
+  const officer = await api('/auth/change-password', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password: DEFAULT_PASSWORD }),
+    body: { current_password: currentPassword, new_password: newPassword },
   })
-  if (!data.ok) throw new ApiError(data.status, 'Backend unreachable')
-  const json = await data.json()
-  localStorage.setItem(TOKEN_KEY, json.token)
-  return json.officer
+  storeOfficer(officer)
+  return officer
+}
+
+export async function logout() {
+  storeToken(null)
+  storeOfficer(null)
 }

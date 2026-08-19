@@ -2,6 +2,25 @@
 
 How scanning works in this prototype, and how to test it without a scanner.
 
+## 0. Signing in
+
+Every screen in LLM is behind an **officer login**:
+
+| Account | Role | Can do |
+|---|---|---|
+| `ama` | Check-in Officer | Check-in, remove bags, loading, lookup, reports |
+| `kofi` | Handover Officer | Handover, unload, lookup, reports |
+| `efua` | Logistics Manager | Everything, including the Dashboard, officer management, participant registration |
+
+- All seeded accounts start with password **`officer123`** and are **forced to change it on
+  first login** — pick a private password (min. 6 characters).
+- Tabs you have no permission for are hidden. The server enforces this too — the UI just
+  follows.
+- Admins manage officer accounts (create, enable/disable, reset password) on the **Dashboard →
+  Officers**. A reset password (`officer123`) forces the officer to change it again at next login.
+- **Sign out** is in the top-right corner. The **Registration app** uses the same login — only
+  the Logistics Manager (`efua`) can add participants there.
+
 ## 1. How the scanner works
 
 The prototype targets **USB barcode scanners of the "keyboard wedge" (HID) type** — the most
@@ -65,7 +84,7 @@ the scanner.
 3. **Truck returns**: at destination, **Handover** offloads the truck ("Confirm arrival"
    or scan/offload each bag) — the truck is now `AT DESTINATION`. Switch to **Loading**
    and press "Return TRUCK-01 to origin" before the next batch can be loaded.
-4. **Handover**: switch the officer to a Handover Officer → scan `ID-1001`, then `LLM-0001`
+4. **Handover**: sign in as `kofi` (Handover Officer) → scan `ID-1001`, then `LLM-0001`
    → bag returned. Bags must be `UNLOADED` first (Loading → departure → offload first).
 5. **Lookup**: scan `LLM-0001`, Enter → see its full history (check-in → loaded → transit →
    unloaded → handed over).
@@ -96,13 +115,14 @@ the scanner.
 The prototype ships with **no demo bags** — the bag database starts empty so every event
 starts from a clean slate (the Dashboard has an "Empty database" button to clear all bags).
 
-- **Participants**: supplied by the **Registration app** (`registration/`). It keeps the
-  master list in shared browser storage (`llm-participants-v1`); LLM reads it automatically
-  (and live — if both apps are open in tabs, LLM picks up changes as they happen) and falls
-  back to a sample list (`ID-1001` … `ID-1008`) when none exists. For the shared storage to
-  work, both apps must be served from the same origin: build the registration app
-  (`cd registration && npm run build`) and open it at `http://localhost:5173/registration/`
-  on the prototype's dev server. Alternatively export JSON/CSV from the registration app and
-  import it on the LLM Dashboard (both formats supported; duplicates are dropped).
+- **Participants**: stored on the **LLM backend**. The Registration app (`registration/`)
+  writes to the same backend (Logistics Manager login required), and LLM reads from it live.
+  When the backend is unreachable both apps fall back to shared browser storage
+  (`llm-participants-v1`); LLM picks up local changes as they happen and re-syncs when the
+  backend is reachable again. For the shared storage to work, both apps must be served from
+  the same origin: build the registration app (`cd registration && npm run build`) and open
+  it at `http://localhost:5173/registration/` on the prototype's dev server. Alternatively
+  export JSON/CSV from the registration app and import it on the LLM Dashboard (both formats
+  supported; duplicates are dropped).
 - **Bags**: none on load. Newly checked-in bags are auto-numbered from `LLM-0001`, and their
   tags carry a real Code 128 barcode ready for thermal-label printing.

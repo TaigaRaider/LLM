@@ -55,8 +55,9 @@ def guess_field_map(sample: dict) -> dict:
 
 
 class ExternalAdapter:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, transport: httpx.AsyncBaseTransport | None = None):
         self.settings = settings
+        self.transport = transport
         self.base_url = settings.external_api_base_url.rstrip("/")
         self.field_map = settings.external_field_map
 
@@ -72,8 +73,8 @@ class ExternalAdapter:
 
     async def fetch_participants(self, since: datetime | None = None) -> list[dict]:
         """Fetch raw participant records from the existing system."""
-        if not self.enabled:
-            raise ExternalApiError("External sync not configured (LLM_EXTERNAL_API_BASE_URL / LLM_EXTERNAL_SYNC_ENABLED)")
+        if not self.settings.external_api_base_url:
+            raise ExternalApiError("External sync not configured (LLM_EXTERNAL_API_BASE_URL)")
         path = self.settings.external_api_participants_path
         params = None
         if since is not None and self.settings.external_api_delta_path:
@@ -82,7 +83,7 @@ class ExternalAdapter:
         url = f"{self.base_url}{path}"
         timeout = self.settings.external_sync_timeout_seconds
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
+            async with httpx.AsyncClient(timeout=timeout, transport=self.transport) as client:
                 resp = await client.get(url, headers=self._headers(), params=params)
                 resp.raise_for_status()
                 data = resp.json()

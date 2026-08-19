@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Bag, Event, Officer, Participant, Vehicle
+from ..permissions import require_perms
 from ..schemas import (
     ActionResult,
     BagOut,
@@ -93,7 +94,7 @@ def get_vehicle(db: Session = Depends(get_db), _: Officer = Depends(current_offi
 
 
 @router.post("/bags/check-in", response_model=list[BagOut], status_code=201)
-def check_in(body: CheckInRequest, db: Session = Depends(get_db), officer: Officer = Depends(current_officer)):
+def check_in(body: CheckInRequest, db: Session = Depends(get_db), officer: Officer = Depends(require_perms("check_in"))):
     participant = db.get(Participant, body.participant_id)
     if not participant or not participant.active:
         raise HTTPException(status_code=404, detail="Participant not found")
@@ -110,7 +111,7 @@ def check_in(body: CheckInRequest, db: Session = Depends(get_db), officer: Offic
 
 
 @router.delete("/bags/{tag_code}", response_model=BagOut)
-def remove_bag(tag_code: str, db: Session = Depends(get_db), _: Officer = Depends(current_officer)):
+def remove_bag(tag_code: str, db: Session = Depends(get_db), _: Officer = Depends(require_perms("remove_bag"))):
     bag = _find_bag(db, tag_code)
     if bag.status != "CHECKED_IN":
         raise HTTPException(status_code=409, detail=f"{bag.tag_code} is {bag.status} — can only remove bags still at check-in")
@@ -123,7 +124,7 @@ def remove_bag(tag_code: str, db: Session = Depends(get_db), _: Officer = Depend
 
 
 @router.post("/bags/load", response_model=list[BagOut])
-def load_bags(body: LoadRequest, db: Session = Depends(get_db), officer: Officer = Depends(current_officer)):
+def load_bags(body: LoadRequest, db: Session = Depends(get_db), officer: Officer = Depends(require_perms("load"))):
     vehicle = _vehicle(db)
     if vehicle.status != "AT_ORIGIN":
         raise HTTPException(status_code=409, detail=f"Vehicle is {vehicle.status} — loading only allowed at origin")
@@ -140,7 +141,7 @@ def load_bags(body: LoadRequest, db: Session = Depends(get_db), officer: Officer
 
 
 @router.post("/bags/depart", response_model=VehicleOut)
-def depart(db: Session = Depends(get_db), officer: Officer = Depends(current_officer)):
+def depart(db: Session = Depends(get_db), officer: Officer = Depends(require_perms("load"))):
     vehicle = _vehicle(db)
     if vehicle.status != "AT_ORIGIN":
         raise HTTPException(status_code=409, detail=f"Vehicle is {vehicle.status} — cannot depart")
@@ -154,7 +155,7 @@ def depart(db: Session = Depends(get_db), officer: Officer = Depends(current_off
 
 
 @router.post("/bags/unload", response_model=ActionResult)
-def unload(tag_code: str = "", all_bags: bool = False, db: Session = Depends(get_db), officer: Officer = Depends(current_officer)):
+def unload(tag_code: str = "", all_bags: bool = False, db: Session = Depends(get_db), officer: Officer = Depends(require_perms("unload"))):
     vehicle = _vehicle(db)
     if all_bags:
         if vehicle.status != "IN_TRANSIT":
@@ -181,7 +182,7 @@ def unload(tag_code: str = "", all_bags: bool = False, db: Session = Depends(get
 
 
 @router.post("/bags/handover", response_model=ActionResult)
-def handover(body: HandoverRequest, db: Session = Depends(get_db), officer: Officer = Depends(current_officer)):
+def handover(body: HandoverRequest, db: Session = Depends(get_db), officer: Officer = Depends(require_perms("handover"))):
     bag = _find_bag(db, body.tag_code)
     if bag.participant_id != body.participant_id:
         raise HTTPException(status_code=409, detail=f"MISMATCH — {bag.tag_code} belongs to a different participant")
@@ -193,7 +194,7 @@ def handover(body: HandoverRequest, db: Session = Depends(get_db), officer: Offi
 
 
 @router.post("/bags/return-to-origin", response_model=VehicleOut)
-def return_to_origin(db: Session = Depends(get_db), _: Officer = Depends(current_officer)):
+def return_to_origin(db: Session = Depends(get_db), _: Officer = Depends(require_perms("load"))):
     vehicle = _vehicle(db)
     if vehicle.status != "AT_DESTINATION":
         raise HTTPException(status_code=409, detail=f"Vehicle is {vehicle.status} — nothing to return")
@@ -205,7 +206,7 @@ def return_to_origin(db: Session = Depends(get_db), _: Officer = Depends(current
 
 
 @router.post("/bags/reset", response_model=ActionResult)
-def reset_database(db: Session = Depends(get_db), _: Officer = Depends(current_officer)):
+def reset_database(db: Session = Depends(get_db), _: Officer = Depends(require_perms("admin"))):
     """Dev/demo helper: wipe all bags and events, vehicle back to origin. Participants are kept."""
     for event in db.query(Event).all():
         db.delete(event)

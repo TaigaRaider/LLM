@@ -1,6 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 const TOKEN_KEY = 'llm_token'
-const DEFAULT_PASSWORD = 'officer123'
+const OFFICER_KEY = 'llm_officer'
 
 export class ApiError extends Error {
   constructor(status, detail) {
@@ -18,6 +18,19 @@ export function setToken(token) {
   else localStorage.removeItem(TOKEN_KEY)
 }
 
+export function getStoredOfficer() {
+  try {
+    return JSON.parse(localStorage.getItem(OFFICER_KEY))
+  } catch {
+    return null
+  }
+}
+
+function storeOfficer(officer) {
+  if (officer) localStorage.setItem(OFFICER_KEY, JSON.stringify(officer))
+  else localStorage.removeItem(OFFICER_KEY)
+}
+
 export async function api(path, { method = 'GET', body } = {}) {
   const token = getToken()
   const res = await fetch(`${API_BASE}${path}`, {
@@ -30,6 +43,7 @@ export async function api(path, { method = 'GET', body } = {}) {
   })
   if (res.status === 401) {
     setToken(null)
+    storeOfficer(null)
     throw new ApiError(401, 'Not authenticated')
   }
   if (!res.ok) {
@@ -46,10 +60,25 @@ export async function api(path, { method = 'GET', body } = {}) {
   return res.json()
 }
 
-export async function loginOfficer(username) {
-  const data = await api('/auth/login', { method: 'POST', body: { username, password: DEFAULT_PASSWORD } })
+export async function loginOfficer(username, password) {
+  const data = await api('/auth/login', { method: 'POST', body: { username, password } })
   setToken(data.token)
+  storeOfficer(data.officer)
   return data.officer
+}
+
+export async function changePassword(currentPassword, newPassword) {
+  const officer = await api('/auth/change-password', {
+    method: 'POST',
+    body: { current_password: currentPassword, new_password: newPassword },
+  })
+  storeOfficer(officer)
+  return officer
+}
+
+export async function logout() {
+  setToken(null)
+  storeOfficer(null)
 }
 
 export function isOnline() {

@@ -4,13 +4,13 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Bag, Officer
 from ..schemas import ReconciliationReport
-from ..security import current_officer
+from ..permissions import require_perms
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 
 @router.get("/reconciliation", response_model=ReconciliationReport)
-def reconciliation(db: Session = Depends(get_db), _: Officer = Depends(current_officer)):
+def reconciliation(db: Session = Depends(get_db), _: Officer = Depends(require_perms("reports"))):
     checked_in = db.query(Bag).count()
     counts = {status: db.query(Bag).filter(Bag.status == status).count() for status in ("HANDED_OVER", "IN_TRANSIT", "UNLOADED", "LOADED", "CHECKED_IN")}
     outstanding = counts["UNLOADED"]

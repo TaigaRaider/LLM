@@ -10,6 +10,29 @@ class OfficerOut(BaseModel):
     name: str
     role: str
     username: str
+    active: bool = True
+    must_change_password: bool = False
+    permissions: list[str] = []
+
+
+class OfficerIn(BaseModel):
+    name: str = Field(min_length=1)
+    role: str = Field(min_length=1)
+    username: str = Field(min_length=2)
+    password: str = Field(min_length=6)
+
+
+class OfficerUpdate(BaseModel):
+    name: str | None = None
+    role: str | None = None
+    username: str | None = None
+    password: str | None = Field(default=None, min_length=6)
+    active: bool | None = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=6)
 
 
 class LoginRequest(BaseModel):

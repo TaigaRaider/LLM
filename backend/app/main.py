@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .database import Base, SessionLocal, engine
 from .models import Officer
-from .routers import auth, bags, participants, reports, sync
+from .routers import auth, bags, officers, participants, reports, sync
 from .security import hash_password
 from .sync.service import service
 
@@ -24,7 +24,15 @@ def seed_officers() -> None:
         if db.query(Officer).count() == 0:
             password = get_settings().default_officer_password
             for o in SEED_OFFICERS:
-                db.add(Officer(username=o["username"], name=o["name"], role=o["role"], password_hash=hash_password(password)))
+                db.add(
+                    Officer(
+                        username=o["username"],
+                        name=o["name"],
+                        role=o["role"],
+                        password_hash=hash_password(password),
+                        must_change_password=True,
+                    )
+                )
             db.commit()
     finally:
         db.close()
@@ -53,6 +61,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(officers.router)
 app.include_router(participants.router)
 app.include_router(bags.router)
 app.include_router(reports.router)

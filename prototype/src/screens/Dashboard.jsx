@@ -1,5 +1,6 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
+import { api } from '../api'
 import StatusBadge from '../components/StatusBadge'
 
 function parseCsv(text) {
@@ -61,7 +62,64 @@ export default function Dashboard() {
   const reloadParticipants = useStore((s) => s.reloadParticipants)
   const importParticipants = useStore((s) => s.importParticipants)
   const showToast = useStore((s) => s.showToast)
+  const officer = useStore((s) => s.officer)
   const fileRef = useRef(null)
+
+  const [officerList, setOfficerList] = useState([])
+  const [newOfficer, setNewOfficer] = useState({ name: '', username: '', role: 'Check-in Officer', password: '' })
+  const [officerError, setOfficerError] = useState(null)
+
+  const reloadOfficers = async () => {
+    try {
+      const list = await api('/officers')
+      setOfficerList(list)
+    } catch (err) {
+      showToast(err.message)
+    }
+  }
+
+  useEffect(() => {
+    reloadOfficers()
+  }, [])
+
+  const createOfficer = async (e) => {
+    e.preventDefault()
+    setOfficerError(null)
+    if (!newOfficer.name.trim() || !newOfficer.username.trim() || !newOfficer.password) {
+      return setOfficerError('Name, username and password are required')
+    }
+    if (newOfficer.password.length < 6) return setOfficerError('Password must be at least 6 characters')
+    try {
+      await api('/officers', { method: 'POST', body: { ...newOfficer, name: newOfficer.name.trim(), username: newOfficer.username.trim() } })
+      setNewOfficer({ name: '', username: '', role: 'Check-in Officer', password: '' })
+      showToast(`Officer ${newOfficer.username} created — will be asked to set a password on first login`)
+      await reloadOfficers()
+    } catch (err) {
+      setOfficerError(err.message)
+    }
+  }
+
+  const updateOfficer = async (o) => {
+    try {
+      await api(`/officers/${o.id}`, { method: 'PUT', body: { active: !o.active } })
+      showToast(`${o.name} ${o.active ? 'disabled' : 'enabled'}`)
+      await reloadOfficers()
+    } catch (err) {
+      showToast(err.message)
+    }
+  }
+
+  const resetPassword = async (o) => {
+    if (!window.confirm(`Reset password for ${o.name}? They will be forced to change it on next login.`)) return
+    try {
+      await api(`/officers/${o.id}`, { method: 'PUT', body: { password: 'officer123' } })
+      showToast(`Password reset to officer123 for ${o.name}`)
+      await reloadOfficers()
+    } catch (err) {
+      showToast(err.message)
+    }
+  }
+
 
   const checkedIn = bags.length
   const handedOver = bags.filter((b) => b.status === 'HANDED_OVER').length
@@ -191,6 +249,104 @@ export default function Dashboard() {
               }}
             />
           </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 className="font-semibold text-slate-900 mb-3">Officers</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div>
+            <ul className="divide-y divide-slate-100">
+              {officerList.map((o) => (
+                <li key={o.id} className="py-2 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium text-slate-900 truncate">
+                      {o.name}
+                      {o.id === officer.id && <span className="ml-2 text-[10px] text-sky-600 font-semibold uppercase">You</span>}
+                    </div>
+                    <div className="text-sm text-slate-500">
+                      {o.role} · <span className="font-mono">{o.username}</span>
+                    </div>
+                    {o.must_change_password && (
+                      <div className="text-xs text-amber-600 font-medium">Password change pending</div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`text-xs font-semibold rounded-full px-2.5 py-1 border ${
+                        o.active
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-slate-50 text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      {o.active ? 'Active' : 'Disabled'}
+                    </span>
+                    <button
+                      onClick={() => resetPassword(o)}
+                      className="px-2 py-1 text-xs border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                    >
+                      Reset password
+                    </button>
+                    <button
+                      onClick={() => updateOfficer(o)}
+                      className="px-2 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      {o.active ? 'Disable' : 'Enable'}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <form onSubmit={createOfficer} className="space-y-3">
+            <h4 className="text-sm font-semibold text-slate-700">Add officer</h4>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Full name</label>
+              <input
+                value={newOfficer.name}
+                onChange={(e) => setNewOfficer({ ...newOfficer, name: e.target.value })}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Username</label>
+              <input
+                value={newOfficer.username}
+                onChange={(e) => setNewOfficer({ ...newOfficer, username: e.target.value })}
+                autoCapitalize="none"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Role</label>
+              <select
+                value={newOfficer.role}
+                onChange={(e) => setNewOfficer({ ...newOfficer, role: e.target.value })}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
+              >
+                <option>Check-in Officer</option>
+                <option>Handover Officer</option>
+                <option>Logistics Manager</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Initial password</label>
+              <input
+                type="password"
+                value={newOfficer.password}
+                onChange={(e) => setNewOfficer({ ...newOfficer, password: e.target.value })}
+                placeholder="min 6 characters"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
+              />
+            </div>
+            {officerError && <p className="text-sm text-red-600 font-medium">{officerError}</p>}
+            <button
+              type="submit"
+              className="w-full py-2 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-800 active:scale-[0.99] transition-all duration-150"
+            >
+              Create officer
+            </button>
+          </form>
         </div>
       </div>
 

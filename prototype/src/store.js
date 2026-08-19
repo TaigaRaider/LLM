@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { seedOfficers, seedParticipants } from './seed'
-import { api, ApiError, getToken, loginOfficer, setToken } from './api'
+import { seedParticipants } from './seed'
+import { api, ApiError, changePassword, getStoredOfficer, getToken, loginOfficer, logout } from './api'
 
 const PARTICIPANT_SOURCE_KEY = 'llm-participants-v1'
 const PENDING_KEY = 'llm_pending_ops'
@@ -83,11 +83,12 @@ const savePending = (ops) => {
 
 const isClientError = (err) => err instanceof ApiError && err.status >= 400 && err.status < 500
 
+const needsPasswordChange = (err) => err instanceof ApiError && err.status === 403 && err.message === 'CHANGE_PASSWORD_REQUIRED'
+
 export const useStore = create(
   persist(
     (set, get) => ({
-      officer: seedOfficers[0],
-      officers: seedOfficers,
+      officer: getStoredOfficer(),
       participants: [],
       bags: [],
       vehicle: { code: 'TRUCK-01', status: 'AT_ORIGIN' },
@@ -95,6 +96,8 @@ export const useStore = create(
       toast: null,
       online: false,
       pendingCount: 0,
+      mustChangePassword: false,
+      loginError: null,
 
       showToast: (msg) => {
         set({ toast: msg })
@@ -127,14 +130,28 @@ export const useStore = create(
         await get().refreshAll()
       },
 
-      setOfficer: async (officer) => {
-        set({ officer })
+      login: async (username, password) => {
+        set({ loginError: null })
         try {
-          await loginOfficer(officer.username)
-          set({ online: true })
-        } catch {
-          set({ online: false })
+          const officer = await loginOfficer(username, password)
+          set({ officer, online: true, mustChangePassword: officer.must_change_password })
+          await get().refreshAll()
+          return officer
+        } catch (err) {
+          set({ loginError: err.message, online: false })
+          throw err
         }
+      },
+
+      changePassword: async (currentPassword, newPassword) => {
+        const officer = await changePassword(currentPassword, newPassword)
+        set({ officer, mustChangePassword: false })
+        return officer
+      },
+
+      logout: async () => {
+        await logout()
+        set({ officer: null, online: false, mustChangePassword: false, loginError: null })
       },
 
       refreshAll: async () => {
@@ -151,20 +168,15 @@ export const useStore = create(
             online: true,
           })
           return true
-        } catch {
+        } catch (err) {
+          if (needsPasswordChange(err)) set({ mustChangePassword: true })
           set({ online: false })
           return false
         }
       },
 
       bootstrap: async () => {
-        if (!getToken()) {
-          try {
-            await loginOfficer(get().officer.username)
-          } catch {
-            /* offline */
-          }
-        }
+        if (!getToken()) return false
         const ok = await get().refreshAll()
         if (ok) {
           await get().flushQueue()
@@ -487,7 +499,6 @@ export const useStore = create(
   )
 )
 
-export { setToken }
 export const STATUS_META = {
   CHECKED_IN: { label: 'Checked in', color: 'bg-sky-50 text-sky-700 border-sky-200' },
   LOADED: { label: 'Loaded', color: 'bg-violet-50 text-violet-700 border-violet-200' },

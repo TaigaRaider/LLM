@@ -10,4 +10,4 @@ backend/.venv/
 backend/.pytest_cache/
 backend/**/__pycache__/
 backend/*.db
-backend/.env
+backend/.envbackend/tools/mock_external_data.json

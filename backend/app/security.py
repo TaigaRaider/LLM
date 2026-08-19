@@ -58,4 +58,22 @@ def current_officer(
     officer = db.get(Officer, officer_id)
     if not officer or not officer.active:
         raise HTTPException(status_code=401, detail="Unknown or disabled officer")
+    if officer.must_change_password:
+        raise HTTPException(status_code=403, detail="CHANGE_PASSWORD_REQUIRED")
+    return officer
+
+
+def current_officer_for_password_change(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: Session = Depends(get_db),
+) -> Officer:
+    """Like current_officer, but lets a user who must change their password through."""
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    officer_id = decode_token(credentials.credentials)
+    if not officer_id:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    officer = db.get(Officer, officer_id)
+    if not officer or not officer.active:
+        raise HTTPException(status_code=401, detail="Unknown or disabled officer")
     return officer

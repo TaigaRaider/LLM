@@ -41,9 +41,9 @@ class SyncStatusHolder:
 
 
 class SyncService:
-    def __init__(self, settings: Settings | None = None):
+    def __init__(self, settings: Settings | None = None, adapter: ExternalAdapter | None = None):
         self.settings = settings or get_settings()
-        self.adapter = ExternalAdapter(self.settings)
+        self.adapter = adapter or ExternalAdapter(self.settings)
         self.status = SyncStatusHolder()
         self.status.enabled = self.adapter.enabled
 
@@ -62,7 +62,13 @@ class SyncService:
                 existing = own.execute(
                     select(Participant).where(Participant.external_id == mapped["external_id"])
                 ).scalar_one_or_none()
+                if existing is None:
+                    # no external_id match: adopt a local participant with the same ID number
+                    existing = own.execute(
+                        select(Participant).where(Participant.id_number == mapped["id_number"])
+                    ).scalar_one_or_none()
                 if existing:
+                    existing.external_id = existing.external_id or mapped["external_id"]
                     existing.name = mapped["name"]
                     existing.id_number = mapped["id_number"]
                     existing.phone = mapped["phone"]

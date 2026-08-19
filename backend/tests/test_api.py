@@ -42,7 +42,7 @@ def test_checkin_creates_tags_and_timeline(client, auth):
     assert [b["tag_code"] for b in bags] == ["LLM-0001", "LLM-0002"]
     assert bags[0]["status"] == "CHECKED_IN"
     assert bags[0]["timeline"][0]["event"] == "CHECKED_IN"
-    assert bags[0]["timeline"][0]["officer_name"] == "Ama Mensah"
+    assert bags[0]["timeline"][0]["officer_name"] == "Efua Addo"
 
 
 def test_checkin_skips_existing_tags(client, auth):
