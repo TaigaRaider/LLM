@@ -41,7 +41,7 @@ services:
       - key: LLM_DATABASE_URL
         fromDatabase:
           name: llm-db
-          property: internalConnectionString
+          property: ConnectionString
       - key: LLM_EXTERNAL_SYNC_ENABLED
         value: "false"
       # --- uncomment + set to connect the existing participant system ---
