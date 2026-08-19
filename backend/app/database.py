@@ -1,10 +1,10 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
-from .config import settings 
+from .config import Settings 
 from .config import get_settings
 import os
 
-database_url = settings.database_url
+database_url = Settings.database_url
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
