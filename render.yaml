@@ -3,18 +3,25 @@
 # How to deploy:
 #   1. Push this repo to GitHub.
 #   2. On render.com: New + -> Blueprint -> connect this repo.
-#   3. Render creates the service from this file and sets a random JWT secret.
+#   3. Render creates the web service AND the managed Postgres database
+#      below, wiring LLM_DATABASE_URL automatically.
+#   4. After changes to this file, re-apply: Dashboard -> Blueprints ->
+#      llm -> Update (infra changes are not auto-applied on push).
 #
 # Notes:
-#   - Default database is SQLite in the service's filesystem, which is
-#     ephemeral on Render (reset on every deploy/restart). For persistent
-#     data, create a managed Postgres instance and set LLM_DATABASE_URL to
-#     its internal URL (sqlalchemy://...).
+#   - Postgres is persistent: data survives redeploys and restarts.
+#     Free Postgres databases are deleted after 30 days of inactivity.
 #   - Free tier web services spin down after ~15 min of inactivity; the
 #     first request after idle takes ~1 min (cold start).
 #   - The external participant sync is disabled by default on Render
 #     (LLM_EXTERNAL_SYNC_ENABLED=false). To enable it, add the
 #     LLM_EXTERNAL_API_* env vars below.
+
+databases:
+  - name: llm-db
+    plan: free
+    databaseName: llm
+    user: llm
 
 services:
   - type: web
@@ -31,6 +38,10 @@ services:
         generateValue: true
       - key: LLM_DEFAULT_OFFICER_PASSWORD
         value: officer123
+      - key: LLM_DATABASE_URL
+        fromDatabase:
+          name: llm-db
+          property: internalConnectionString
       - key: LLM_EXTERNAL_SYNC_ENABLED
         value: "false"
       # --- uncomment + set to connect the existing participant system ---
