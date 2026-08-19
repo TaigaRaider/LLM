@@ -1,0 +1,46 @@
+# Render Blueprint — deploys the LLM backend as a free web service.
+#
+# How to deploy:
+#   1. Push this repo to GitHub.
+#   2. On render.com: New + -> Blueprint -> connect this repo.
+#   3. Render creates the service from this file and sets a random JWT secret.
+#
+# Notes:
+#   - Default database is SQLite in the service's filesystem, which is
+#     ephemeral on Render (reset on every deploy/restart). For persistent
+#     data, create a managed Postgres instance and set LLM_DATABASE_URL to
+#     its internal URL (sqlalchemy://...).
+#   - Free tier web services spin down after ~15 min of inactivity; the
+#     first request after idle takes ~1 min (cold start).
+#   - The external participant sync is disabled by default on Render
+#     (LLM_EXTERNAL_SYNC_ENABLED=false). To enable it, add the
+#     LLM_EXTERNAL_API_* env vars below.
+
+services:
+  - type: web
+    name: llm-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 60
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: LLM_JWT_SECRET
+        generateValue: true
+      - key: LLM_DEFAULT_OFFICER_PASSWORD
+        value: officer123
+      - key: LLM_EXTERNAL_SYNC_ENABLED
+        value: "false"
+      # --- uncomment + set to connect the existing participant system ---
+      # - key: LLM_EXTERNAL_API_BASE_URL
+      #   value: https://registry.example.org/api
+      # - key: LLM_EXTERNAL_API_TOKEN
+      #   sync: false
+      # - key: LLM_EXTERNAL_API_PARTICIPANTS_PATH
+      #   value: /participants
+      # - key: LLM_EXTERNAL_API_DELTA_PATH
+      #   value: /participants/updated
+      # - key: LLM_EXTERNAL_API_FIELD_MAP
+      #   value: '{"id":"id","name":"name","nationalId":"id_number","phone":"phone","bus":"group"}'
