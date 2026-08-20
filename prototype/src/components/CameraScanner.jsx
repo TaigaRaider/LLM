@@ -15,6 +15,21 @@ const FORMATS = [
   Html5QrcodeSupportedFormats.ITF,
 ]
 
+const NATIVE_FORMATS = [
+  'code_128',
+  'code_39',
+  'code_93',
+  'ean_13',
+  'ean_8',
+  'upc_a',
+  'upc_e',
+  'itf',
+  'qr_code',
+]
+
+const nativeSupported = () =>
+  typeof window !== 'undefined' && 'BarcodeDetector' in window
+
 const pickCameraId = async () => {
   if (!navigator.mediaDevices?.enumerateDevices) return null
   const devices = await navigator.mediaDevices.enumerateDevices()
@@ -27,30 +42,72 @@ const pickCameraId = async () => {
 export default function CameraScanner({ onScan, onClose }) {
   const [error, setError] = useState(null)
   const [starting, setStarting] = useState(true)
+  const [usingNative, setUsingNative] = useState(false)
   const callbacks = useRef({ onScan, onClose })
   callbacks.current = { onScan, onClose }
 
   useEffect(() => {
-    const scanner = new Html5Qrcode(READER_ID, { verbose: false })
-    let done = false
-
-    const stop = () => {
-      try {
-        scanner.stop().catch(() => {})
-      } catch {
-        // scanner is not running or paused; nothing to stop
-      }
-    }
+    let cleanup = () => {}
+    let cancelled = false
 
     const finish = (code) => {
-      if (done) return
-      done = true
-      stop()
+      if (cancelled) return
+      cancelled = true
       callbacks.current.onScan(code)
       callbacks.current.onClose()
     }
 
-    const startScanning = async () => {
+    const stopStream = (stream) => {
+      stream?.getTracks().forEach((t) => t.stop())
+    }
+
+    const startNative = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      })
+      if (cancelled) {
+        stopStream(stream)
+        return
+      }
+      const video = document.createElement('video')
+      video.setAttribute('playsinline', '')
+      video.autoplay = true
+      video.muted = true
+      video.srcObject = stream
+      const holder = document.getElementById(READER_ID)
+      if (!holder) {
+        stopStream(stream)
+        return
+      }
+      holder.appendChild(video)
+      video.style.width = '100%'
+      video.style.height = '100%'
+      video.style.objectFit = 'cover'
+      await video.play()
+      const detector = new BarcodeDetector({ formats: NATIVE_FORMATS })
+      const tick = async () => {
+        if (cancelled) return
+        try {
+          const codes = await detector.detect(video)
+          if (codes.length && codes[0].rawValue) {
+            finish(codes[0].rawValue)
+            return
+          }
+        } catch {
+          // detection frame error, keep trying
+        }
+        requestAnimationFrame(tick)
+      }
+      tick()
+      cleanup = () => {
+        stopStream(stream)
+        video.remove()
+      }
+      setUsingNative(true)
+    }
+
+    const startFallback = async () => {
+      const scanner = new Html5Qrcode(READER_ID, { verbose: false })
       const cameraId = await pickCameraId()
       const config = {
         fps: 15,
@@ -66,24 +123,38 @@ export default function CameraScanner({ onScan, onClose }) {
         (decodedText) => finish(decodedText),
         () => {}
       )
+      cleanup = () => {
+        scanner.stop().catch(() => {})
+      }
     }
 
-    startScanning()
+    const boot = async () => {
+      if (nativeSupported()) {
+        try {
+          await startNative()
+          return
+        } catch {
+          // native failed (e.g. permission denied), fall through
+        }
+      }
+      await startFallback()
+    }
+
+    boot()
       .then(() => {
-        if (!done) setStarting(false)
+        if (!cancelled) setStarting(false)
       })
       .catch(() => {
-        if (!done) {
-          done = true
+        if (!cancelled) {
+          cancelled = true
           setStarting(false)
           setError('Could not start the camera. Check that this device has a camera and that you allowed camera access.')
         }
       })
 
     return () => {
-      if (done) return
-      done = true
-      stop()
+      cancelled = true
+      cleanup()
     }
   }, [])
 
@@ -93,7 +164,9 @@ export default function CameraScanner({ onScan, onClose }) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
           <div>
             <div className="font-semibold text-slate-900">Scan tag with camera</div>
-            <div className="text-xs text-slate-500">Hold the barcode flat and level, filling the wide box. Steady for a second — it reads automatically.</div>
+            <div className="text-xs text-slate-500">
+              Hold the barcode flat and level, filling the box. Steady for a second — it reads automatically.
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -110,6 +183,9 @@ export default function CameraScanner({ onScan, onClose }) {
             <>
               <div id={READER_ID} className="overflow-hidden rounded-lg bg-slate-950 h-72" />
               {starting && <p className="text-xs text-slate-400 mt-2 text-center">Starting camera…</p>}
+              {!starting && usingNative && (
+                <p className="text-xs text-slate-400 mt-2 text-center">Native scanner active — hold the tag in view</p>
+              )}
             </>
           )}
         </div>
