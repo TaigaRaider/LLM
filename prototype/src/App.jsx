@@ -58,56 +58,82 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="sticky top-0 z-20 bg-white border-b border-slate-200">
+      <aside className="hidden md:flex fixed inset-y-0 left-0 w-60 bg-slate-900 flex-col z-30">
+        <div className="px-5 py-5 flex items-center gap-2.5 border-b border-slate-800">
+          <img src="/icon.svg" alt="" className="w-8 h-8" />
+          <div>
+            <div className="font-semibold text-white leading-tight tracking-tight">LLM</div>
+            <div className="text-[10px] text-slate-400 leading-tight">Luggage Logistics Manager</div>
+          </div>
+        </div>
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto no-scrollbar">
+          {visibleTabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === t.id
+                  ? 'bg-sky-500/15 text-sky-400'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+        <div className="px-5 py-4 border-t border-slate-800">
+          <div className="text-sm font-medium text-slate-200">{officer.name}</div>
+          <div className="text-[10px] text-slate-400 mb-2.5">{officer.role}</div>
+          <button
+            onClick={() => logout()}
+            className="w-full px-3 py-1.5 text-sm border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      </aside>
+
+      <header className="md:hidden sticky top-0 z-20 bg-slate-900 border-b border-slate-800">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <img src="/icon.svg" alt="" className="w-7 h-7" />
             <div>
-              <div className="font-semibold leading-tight text-slate-900 tracking-tight">LLM</div>
+              <div className="font-semibold leading-tight text-white tracking-tight">LLM</div>
               <div className="text-[10px] text-slate-400 leading-tight">Luggage Logistics Manager</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right leading-tight">
-              <div className="text-sm font-medium text-slate-800">{officer.name}</div>
-              <div className="text-[10px] text-slate-400">{officer.role}</div>
-            </div>
-            <button
-              onClick={() => logout()}
-              className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-colors"
-            >
-              Sign out
-            </button>
-          </div>
+          <button
+            onClick={() => logout()}
+            className="px-3 py-1.5 text-xs border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
+          >
+            Sign out
+          </button>
         </div>
-        {visibleTabs.length > 0 && (
-          <nav className="border-t border-slate-100 overflow-x-auto no-scrollbar">
-            <div className="flex max-w-5xl mx-auto">
-              {visibleTabs.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                    activeTab === t.id
-                      ? 'border-sky-600 text-sky-700'
-                      : 'border-transparent text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </nav>
-        )}
       </header>
 
-      <main key={activeTab} className="q-rise max-w-5xl mx-auto px-4 py-6">
+      <main key={activeTab} className="q-rise max-w-5xl mx-auto px-4 py-6 pb-24 md:pb-6 md:pl-60">
         {activeTab === 'checkin' && <CheckIn />}
         {activeTab === 'loading' && <Loading />}
         {activeTab === 'handover' && <Handover />}
         {activeTab === 'lookup' && <Lookup />}
         {activeTab === 'dashboard' && <Dashboard />}
       </main>
+
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 flex">
+        {visibleTabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex-1 py-2.5 text-xs font-medium whitespace-nowrap transition-colors ${
+              activeTab === t.id
+                ? 'text-sky-700 border-t-2 border-sky-600 -mt-px'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
       {!online && (
         <div className="q-rise-sm fixed bottom-16 left-1/2 -translate-x-1/2 z-40 bg-amber-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm flex items-center gap-2">
