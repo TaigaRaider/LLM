@@ -7,25 +7,36 @@ Two hosts, both free tiers:
 
 ## 1. Backend on Render
 
-Everything is defined in `render.yaml` (web service + managed Postgres `llm-db`,
-random `LLM_JWT_SECRET`, `LLM_DATABASE_URL` wired automatically).
+The live backend is at **https://llm-backend-3hy2.onrender.com** (`/api/health`
+returns `{"status": "ok"}`). It is a free-tier Python web service (region
+`oregon`, Python 3.12) with a free managed Postgres `llm-db`
+(`dpg-da30uaibkg8c73d8f260-a`, database name `llm_vxy3`).
 
-1. Push this repo to GitHub (already done — `main`).
-2. Go to https://render.com → **New +** → **Blueprint**.
-3. Connect the GitHub repo (authorize the GitHub app if prompted).
-4. Render proposes: web service `llm-backend` + database `llm-db` → **Apply**.
-5. Wait for the deploy (build + start, a few minutes). Free services spin down
-   after ~15 min idle — the first request after that takes ~1 min.
-6. Verify: open `https://<your-service>.onrender.com/api/health` → `{"status": "ok"}`.
-   If the name `llm-backend` is taken, Render picks another — note the URL.
+> The original Blueprint was deleted (its initial sync failed and left
+> `LLM_DATABASE_URL` as a placeholder, which crashed every deploy). The resources
+> are now managed directly in the Render dashboard / API, so changes to
+> `render.yaml` do **not** auto-apply. `render.yaml` is kept as documentation of
+> the intended setup.
 
-Changing infra later (e.g. enabling external sync): edit `render.yaml`, push,
-then on Render **Dashboard → Blueprints → your blueprint → Update** (infra
-changes are not auto-applied on push).
+Key env vars on the service (set via the Render dashboard / API, not in the repo):
 
-Seeded logins: `ama` / `kofi` / `efua`, all with password `officer123` — each is
-forced to change it on first login. **Change `efua`'s password immediately** after
-deploying: whoever can log in as Logistics Manager controls everything.
+- `LLM_JWT_SECRET` — generated value
+- `LLM_DATABASE_URL` — the real internal Postgres connection string
+  (`postgresql://llm:…@dpg-da30uaibkg8c73d8f260-a/llm_vxy3`)
+- `LLM_DEFAULT_OFFICER_PASSWORD` — `officer123` (only used at seed time)
+- `LLM_EXTERNAL_SYNC_ENABLED` — `false` (external participant sync off)
+
+Deploys run automatically from `main` (auto-deploy on commit). Free services
+spin down after ~15 min idle — the first request after that takes ~1 min.
+
+If you ever need to recreate from scratch: create a new Blueprint from
+`render.yaml` or create the web service + Postgres directly and set the env vars
+above manually.
+
+Officer accounts are seeded on startup (tables auto-create + re-seed if empty).
+**Passwords were rotated after launch** — they are no longer `officer123` (see the
+last person who set them / the notes in this repo's git history). Rotate them
+again in the app under Dashboard → Officers if you need fresh ones.
 
 ### Postgres notes
 
@@ -47,9 +58,14 @@ registration app into `public/registration/` (`prebuild` script), so
    - Build command: leave default (`npm run build`)
    - Output directory: `dist`
 3. Deploy. The production API base is read from `prototype/.env.production`
-   (`VITE_API_BASE`). If your Render service got a different name than
-   `llm-backend`, edit that one line, commit, and Vercel redeploys.
-4. Verify: open the site → sign in as `efua` / `officer123`.
+   (`VITE_API_BASE`), which currently points at
+   `https://llm-backend-3hy2.onrender.com/api`.
+4. Verify: open the site → sign in with the current officer credentials.
+
+The live frontend is at **https://luggagelogisticsmanager.vercel.app**
+(`/registration/` serves the registration app). The Vercel project is
+`luggage_logistics_manager` (root directory `prototype`, framework Vite, linked
+to this repo's `main`), so pushes redeploy automatically.
 
 Security note: the registration app (`/registration/`) is deployed publicly but
 requires a Logistics Manager login — that's the intended gate.
