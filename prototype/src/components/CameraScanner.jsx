@@ -1,9 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
+import Quagga from '@ericblade/quagga2'
 
 const READER_ID = 'llm-camera-reader'
 
-const FORMATS = [
+const QUAGGA_READERS = [
+  'code_128_reader',
+  'code_39_reader',
+  'code_93_reader',
+  'ean_reader',
+  'ean_8_reader',
+  'upc_reader',
+  'upc_e_reader',
+  'i2of5_reader',
+  '2of5_reader',
+]
+
+const HTML5_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE,
   Html5QrcodeSupportedFormats.CODE_128,
   Html5QrcodeSupportedFormats.CODE_39,
@@ -42,7 +55,7 @@ const pickCameraId = async () => {
 export default function CameraScanner({ onScan, onClose }) {
   const [error, setError] = useState(null)
   const [starting, setStarting] = useState(true)
-  const [usingNative, setUsingNative] = useState(false)
+  const [engine, setEngine] = useState('')
   const callbacks = useRef({ onScan, onClose })
   callbacks.current = { onScan, onClose }
 
@@ -67,7 +80,7 @@ export default function CameraScanner({ onScan, onClose }) {
       })
       if (cancelled) {
         stopStream(stream)
-        return
+        throw new Error('cancelled')
       }
       const video = document.createElement('video')
       video.setAttribute('playsinline', '')
@@ -77,7 +90,7 @@ export default function CameraScanner({ onScan, onClose }) {
       const holder = document.getElementById(READER_ID)
       if (!holder) {
         stopStream(stream)
-        return
+        throw new Error('no holder')
       }
       holder.appendChild(video)
       video.style.width = '100%'
@@ -94,7 +107,7 @@ export default function CameraScanner({ onScan, onClose }) {
             return
           }
         } catch {
-          // detection frame error, keep trying
+          // frame error, keep trying
         }
         requestAnimationFrame(tick)
       }
@@ -103,10 +116,49 @@ export default function CameraScanner({ onScan, onClose }) {
         stopStream(stream)
         video.remove()
       }
-      setUsingNative(true)
+      setEngine('native')
     }
 
-    const startFallback = async () => {
+    const startQuagga = () =>
+      new Promise((resolve, reject) => {
+        Quagga.init(
+          {
+            inputStream: {
+              name: 'Live',
+              type: 'LiveStream',
+              target: document.getElementById(READER_ID),
+              constraints: { facingMode: 'environment' },
+            },
+            locator: { patchSize: 'medium', halfSample: true },
+            numOfWorkers: 0,
+            frequency: 15,
+            decoder: { readers: QUAGGA_READERS },
+            locate: true,
+          },
+          (err) => {
+            if (err) {
+              reject(err)
+              return
+            }
+            Quagga.start()
+            resolve()
+          }
+        )
+        Quagga.onDetected((result) => {
+          const code = result?.codeResult?.code
+          if (code) finish(code)
+        })
+        cleanup = () => {
+          try {
+            Quagga.stop()
+          } catch {
+            // not started
+          }
+        }
+        setEngine('quagga')
+      })
+
+    const startHtml5 = async () => {
       const scanner = new Html5Qrcode(READER_ID, { verbose: false })
       const cameraId = await pickCameraId()
       const config = {
@@ -115,7 +167,7 @@ export default function CameraScanner({ onScan, onClose }) {
           width: Math.min(420, viewfinderWidth - 16),
           height: Math.min(140, viewfinderHeight - 16),
         }),
-        formatsToSupport: FORMATS,
+        formatsToSupport: HTML5_FORMATS,
       }
       await scanner.start(
         cameraId ? { deviceId: { exact: cameraId } } : { facingMode: 'environment' },
@@ -126,6 +178,7 @@ export default function CameraScanner({ onScan, onClose }) {
       cleanup = () => {
         scanner.stop().catch(() => {})
       }
+      setEngine('html5')
     }
 
     const boot = async () => {
@@ -134,10 +187,16 @@ export default function CameraScanner({ onScan, onClose }) {
           await startNative()
           return
         } catch {
-          // native failed (e.g. permission denied), fall through
+          // fall through
         }
       }
-      await startFallback()
+      try {
+        await startQuagga()
+        return
+      } catch {
+        // fall through
+      }
+      await startHtml5()
     }
 
     boot()
@@ -181,10 +240,14 @@ export default function CameraScanner({ onScan, onClose }) {
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">{error}</div>
           ) : (
             <>
-              <div id={READER_ID} className="overflow-hidden rounded-lg bg-slate-950 h-72" />
+              <div id={READER_ID} className="overflow-hidden rounded-lg bg-slate-950 h-72 relative" />
               {starting && <p className="text-xs text-slate-400 mt-2 text-center">Starting camera…</p>}
-              {!starting && usingNative && (
-                <p className="text-xs text-slate-400 mt-2 text-center">Native scanner active — hold the tag in view</p>
+              {!starting && (
+                <p className="text-xs text-slate-400 mt-2 text-center">
+                  {engine === 'native' && 'Native scanner active — hold the tag in view'}
+                  {engine === 'quagga' && '1D scanner active — hold the tag in view'}
+                  {engine === 'html5' && 'Scanner active — hold the tag in view'}
+                </p>
               )}
             </>
           )}
