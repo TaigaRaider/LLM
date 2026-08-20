@@ -20,7 +20,7 @@
 databases:
   - name: llm-db
     plan: free
-    databaseName: llm
+    databaseName: llm_vxy3
     user: llm
 
 services:
