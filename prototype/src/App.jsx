@@ -81,7 +81,7 @@ export default function App() {
           </div>
         </div>
         {visibleTabs.length > 0 && (
-          <nav className="border-t border-slate-100 overflow-x-auto">
+          <nav className="border-t border-slate-100 overflow-x-auto no-scrollbar">
             <div className="flex max-w-5xl mx-auto">
               {visibleTabs.map((t) => (
                 <button
