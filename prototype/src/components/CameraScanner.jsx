@@ -53,10 +53,10 @@ export default function CameraScanner({ onScan, onClose }) {
     const startScanning = async () => {
       const cameraId = await pickCameraId()
       const config = {
-        fps: 10,
+        fps: 15,
         qrbox: (viewfinderWidth, viewfinderHeight) => ({
-          width: Math.min(260, viewfinderWidth - 24),
-          height: Math.min(180, viewfinderHeight - 24),
+          width: Math.min(420, viewfinderWidth - 16),
+          height: Math.min(140, viewfinderHeight - 16),
         }),
         formatsToSupport: FORMATS,
       }
@@ -93,7 +93,7 @@ export default function CameraScanner({ onScan, onClose }) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
           <div>
             <div className="font-semibold text-slate-900">Scan tag with camera</div>
-            <div className="text-xs text-slate-500">Hold the barcode or QR code steady inside the frame</div>
+            <div className="text-xs text-slate-500">Hold the barcode flat and level, filling the wide box. Steady for a second — it reads automatically.</div>
           </div>
           <button
             onClick={onClose}
