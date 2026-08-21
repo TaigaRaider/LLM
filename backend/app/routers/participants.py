@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+import io
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Officer, Participant
-from ..schemas import ParticipantIn, ParticipantOut, ParticipantUpdate
+from ..schemas import ImportResult, ParticipantIn, ParticipantOut, ParticipantUpdate
 from ..permissions import require_perms
 
 router = APIRouter(prefix="/api/participants", tags=["participants"])
@@ -101,6 +103,79 @@ def bulk_create_participants(
     for p in created:
         db.refresh(p)
     return created
+
+
+@router.post("/import-excel", response_model=ImportResult)
+async def import_excel(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: Officer = Depends(require_perms("admin")),
+):
+    # Validate file extension
+    filename = (file.filename or "").lower()
+    if not filename.endswith((".xlsx", ".xlsm")):
+        raise HTTPException(status_code=422, detail="File must be .xlsx or .xlsm")
+
+    # Read file with size limit (5 MB)
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=422, detail="File too large (max 5 MB)")
+
+    # Parse Excel
+    try:
+        from openpyxl import load_workbook
+
+        wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+        ws = wb.active
+        raw_rows = [list(row) for row in ws.iter_rows(values_only=True)]
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Could not parse Excel file: {exc}")
+
+    if not raw_rows:
+        raise HTTPException(status_code=422, detail="The file has no rows")
+
+    # Detect header row
+    header = [str(c or "").strip().lower().replace(" ", "").replace("_", "") for c in raw_rows[0]]
+    idx_name = next((i for i, h in enumerate(header) if h in ("name", "fullname", "participantname")), None)
+    idx_id = next((i for i, h in enumerate(header) if h in ("idnumber", "id", "nationalid", "participantid")), None)
+    idx_phone = next((i for i, h in enumerate(header) if h in ("phone", "phonenumber", "mobile")), None)
+    idx_group = next((i for i, h in enumerate(header) if h in ("group", "bus", "busgroup")), None)
+
+    if idx_name is None:
+        raise HTTPException(status_code=422, detail="Missing required column: 'name' (or 'fullname', 'participantname')")
+
+    existing_numbers = {p.id_number for p in db.query(Participant).all()}
+    created = 0
+    skipped = []
+    total = max(len(raw_rows) - 1, 0)
+
+    for row_idx, row in enumerate(raw_rows[1:], start=2):
+        if not row or not any(str(c or "").strip() for c in row):
+            continue
+        cell = lambda i: str(row[i]).strip() if i is not None and i < len(row) and row[i] is not None else ""
+        name = cell(idx_name)
+        if not name:
+            skipped.append(f"Row {row_idx}: missing name")
+            continue
+        id_number = cell(idx_id) if idx_id is not None else ""
+        if not id_number:
+            id_number = _next_id_number(db)
+        if id_number in existing_numbers:
+            skipped.append(f"Row {row_idx}: duplicate ID '{id_number}'")
+            continue
+        existing_numbers.add(id_number)
+        participant = Participant(
+            name=name,
+            id_number=id_number,
+            phone=cell(idx_phone),
+            group=cell(idx_group),
+            source="local",
+        )
+        db.add(participant)
+        created += 1
+
+    db.commit()
+    return ImportResult(total=total, created=created, skipped=skipped[:100])
 
 
 @router.put("/{participant_id}", response_model=ParticipantOut)

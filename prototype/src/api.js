@@ -1,6 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 const TOKEN_KEY = 'llm_token'
 const OFFICER_KEY = 'llm_officer'
+const FETCH_TIMEOUT = 30000
 
 export class ApiError extends Error {
   constructor(status, detail) {
@@ -31,33 +32,50 @@ function storeOfficer(officer) {
   else localStorage.removeItem(OFFICER_KEY)
 }
 
+async function fetchWithTimeout(url, options, timeout = FETCH_TIMEOUT) {
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), timeout)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } finally {
+    clearTimeout(id)
+  }
+}
+
 export async function api(path, { method = 'GET', body } = {}) {
   const token = getToken()
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-  if (res.status === 401) {
-    setToken(null)
-    storeOfficer(null)
-    throw new ApiError(401, 'Not authenticated')
-  }
-  if (!res.ok) {
-    let detail = res.statusText
-    try {
-      const j = await res.json()
-      if (typeof j.detail === 'string') detail = j.detail
-    } catch {
-      /* not json */
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+    if (res.status === 401) {
+      setToken(null)
+      storeOfficer(null)
+      throw new ApiError(401, 'Not authenticated')
     }
-    throw new ApiError(res.status, detail)
+    if (!res.ok) {
+      let detail = res.statusText
+      try {
+        const j = await res.json()
+        if (typeof j.detail === 'string') detail = j.detail
+      } catch {
+        /* not json */
+      }
+      throw new ApiError(res.status, detail)
+    }
+    if (res.status === 204) return null
+    return res.json()
+  } catch (err) {
+    if (err instanceof ApiError) throw err
+    if (err.name === 'AbortError') throw new ApiError(0, 'Request timed out')
+    if (err instanceof TypeError && err.message.includes('fetch')) throw new ApiError(0, 'Network error — check connection')
+    throw new ApiError(0, err.message || 'Unknown error')
   }
-  if (res.status === 204) return null
-  return res.json()
 }
 
 export async function loginOfficer(username, password) {
