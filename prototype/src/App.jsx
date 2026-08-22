@@ -41,14 +41,31 @@ export default function App() {
     const onFocus = () => {
       refreshAll()
     }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && getToken() && officer) {
+        refreshAll()
+      }
+    }
     window.addEventListener('storage', onStorage)
     window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    
+    // Fast poll (3s) when visible, slower (15s) when hidden
+    let pollInterval = 3000
     const poll = setInterval(() => {
-      if (getToken() && officer && document.visibilityState === 'visible') refreshAll()
-    }, 10000)
+      if (!getToken() || !officer) return
+      if (document.visibilityState !== 'visible') {
+        pollInterval = 15000
+        return
+      }
+      pollInterval = 3000
+      refreshAll()
+    }, pollInterval)
+    
     return () => {
       window.removeEventListener('storage', onStorage)
       window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       clearInterval(poll)
     }
   }, [reloadParticipants, refreshAll, officer])
