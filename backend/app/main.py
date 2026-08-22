@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 from .config import get_settings
 from .database import Base, SessionLocal, engine
-from .models import Officer, Vehicle
+from .models import Officer, Vehicle, Participant
 from .routers import auth, bags, officers, participants, reports, sync, trips, vehicles
 from .security import hash_password
 from .sync.service import service
@@ -16,6 +16,12 @@ SEED_OFFICERS = [
     {"username": "ama", "name": "Ama Mensah", "role": "Check-in Officer"},
     {"username": "kofi", "name": "Kofi Owusu", "role": "Handover Officer"},
     {"username": "efua", "name": "Efua Addo", "role": "Logistics Manager"},
+]
+
+SEED_PARTICIPANTS = [
+    {"name": "Abena Osei", "id_number": "GHA-001", "phone": "0244123456", "group": "Bus A"},
+    {"name": "Kwame Asante", "id_number": "GHA-002", "phone": "0244234567", "group": "Bus A"},
+    {"name": "Akosua Boadu", "id_number": "GHA-003", "phone": "0244345678", "group": "Bus B"},
 ]
 
 
@@ -32,6 +38,26 @@ def seed_officers() -> None:
                         role=o["role"],
                         password_hash=hash_password(password),
                         must_change_password=False,
+                    )
+                )
+            db.commit()
+    finally:
+        db.close()
+
+
+def seed_participants() -> None:
+    db = SessionLocal()
+    try:
+        if db.query(Participant).count() == 0:
+            for p in SEED_PARTICIPANTS:
+                db.add(
+                    Participant(
+                        name=p["name"],
+                        id_number=p["id_number"],
+                        phone=p["phone"],
+                        group=p["group"],
+                        active=True,
+                        source="local",
                     )
                 )
             db.commit()
@@ -84,6 +110,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     migrate()
     seed_officers()
+    seed_participants()
     task = None
     if service.adapter.enabled:
         task = asyncio.create_task(service.poll_loop())

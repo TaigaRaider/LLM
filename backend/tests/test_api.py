@@ -16,7 +16,7 @@ def test_auth_required(client):
 
 def test_participant_create_auto_id(client, auth):
     p = make_participant(client, auth)
-    assert p["id_number"] == "ID-0001"
+    assert p["id_number"] == "ID-0004"
     assert p["source"] == "local"
 
 

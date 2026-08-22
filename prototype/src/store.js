@@ -132,6 +132,7 @@ export const useStore = create(
       nextTagNumber: 1,
       toast: null,
       online: false,
+      hasBeenOnline: false,
       pendingCount: 0,
       mustChangePassword: false,
       loginError: null,
@@ -211,6 +212,7 @@ export const useStore = create(
             vehicles: vehicles.map(normalizeVehicle),
             trips: trips.map(normalizeTrip),
             online: true,
+            hasBeenOnline: true,
           })
           return true
         } catch (err) {

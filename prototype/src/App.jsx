@@ -24,6 +24,7 @@ export default function App() {
   const mustChangePassword = useStore((s) => s.mustChangePassword)
   const toast = useStore((s) => s.toast)
   const online = useStore((s) => s.online)
+  const hasBeenOnline = useStore((s) => s.hasBeenOnline)
   const pendingCount = useStore((s) => s.pendingCount)
   const bootstrap = useStore((s) => s.bootstrap)
   const reloadParticipants = useStore((s) => s.reloadParticipants)
@@ -139,7 +140,7 @@ export default function App() {
         ))}
       </nav>
 
-      {!online && (
+      {!online && (hasBeenOnline || pendingCount > 0) && (
         <div className="q-rise-sm fixed bottom-16 left-1/2 -translate-x-1/2 z-40 bg-amber-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm flex items-center gap-2">
           <span>Offline — changes saved locally</span>
           {pendingCount > 0 && (
