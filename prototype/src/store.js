@@ -630,6 +630,24 @@ export const useStore = create(
           get().queueOp({ path: '/bags/reset', method: 'POST' })
         }
       },
+
+      resetAll: async () => {
+        const cleared = {
+          bags: [],
+          participants: [],
+          vehicle: { code: 'TRUCK-01', status: 'AT_ORIGIN' },
+          vehicles: [],
+          nextTagNumber: 1,
+        }
+        try {
+          await api('/bags/reset-all', { method: 'POST' })
+          set({ ...cleared, online: true })
+          await get().refreshAll()
+        } catch {
+          set({ ...cleared, online: false })
+          get().queueOp({ path: '/bags/reset-all', method: 'POST' })
+        }
+      },
     }),
     {
       name: 'llm-prototype-v3',

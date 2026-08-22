@@ -291,6 +291,25 @@ def reset_database(db: Session = Depends(get_db), _: Officer = Depends(require_p
     return ActionResult(reason="Database emptied — ready for fresh check-in")
 
 
+@router.post("/bags/reset-all", response_model=ActionResult)
+def reset_database_all(db: Session = Depends(get_db), _: Officer = Depends(require_perms("admin"))):
+    """Dev/demo helper: wipe EVERYTHING including participants. Trip history is kept."""
+    for event in db.query(Event).all():
+        db.delete(event)
+    for bag in db.query(Bag).all():
+        db.delete(bag)
+    for participant in db.query(Participant).all():
+        db.delete(participant)
+    for vehicle in db.query(Vehicle).all():
+        vehicle.status = "AT_ORIGIN"
+        vehicle.updated_at = _now()
+    db.commit()
+    # Re-seed default participants
+    from ..main import seed_participants
+    seed_participants()
+    return ActionResult(reason="Database fully emptied (including participants) — ready for fresh start")
+
+
 @router.get("/bags/{tag_code}", response_model=BagOut)
 def get_bag(tag_code: str, db: Session = Depends(get_db), _: Officer = Depends(current_officer)):
     return _bag_out(db, _find_bag(db, tag_code))

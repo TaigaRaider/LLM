@@ -111,6 +111,7 @@ export default function Dashboard() {
   const vehicle = useStore((s) => s.vehicle) || { code: 'TRUCK-01', status: 'AT_ORIGIN' }
   const trips = useStore((s) => s.trips) || []
   const reset = useStore((s) => s.reset)
+  const resetAll = useStore((s) => s.resetAll)
   const reloadParticipants = useStore((s) => s.reloadParticipants)
   const importParticipants = useStore((s) => s.importParticipants)
   const recoverBag = useStore((s) => s.recoverBag)
@@ -697,16 +698,28 @@ export default function Dashboard() {
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-400">Every bag must belong to a registered participant.</p>
-        <button
-          onClick={async () => {
-            if (!window.confirm('Empty the entire bag database? This cannot be undone.')) return
-            await reset()
-            showToast('Database emptied — ready for fresh check-in')
-          }}
-          className="px-4 py-2 text-sm border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-colors"
-        >
-          Empty database
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              if (!window.confirm('Empty the entire bag database? This cannot be undone.')) return
+              await reset()
+              showToast('Database emptied — ready for fresh check-in')
+            }}
+            className="px-4 py-2 text-sm border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+          >
+            Empty bags only
+          </button>
+          <button
+            onClick={async () => {
+              if (!window.confirm('Empty EVERYTHING including participants? This cannot be undone.')) return
+              await resetAll()
+              showToast('Database fully emptied — fresh start')
+            }}
+            className="px-4 py-2 text-sm border border-red-300 rounded-lg text-red-600 hover:bg-red-50 hover:border-red-400 transition-colors"
+          >
+            Empty everything
+          </button>
+        </div>
       </div>
     </div>
   )
