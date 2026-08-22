@@ -19,9 +19,9 @@ SEED_OFFICERS = [
 ]
 
 SEED_PARTICIPANTS = [
-    {"name": "Abena Osei", "id_number": "GHA-001", "phone": "0244123456", "group": "Bus A"},
-    {"name": "Kwame Asante", "id_number": "GHA-002", "phone": "0244234567", "group": "Bus A"},
-    {"name": "Akosua Boadu", "id_number": "GHA-003", "phone": "0244345678", "group": "Bus B"},
+    {"name": "Abena Osei", "id_number": "ID-001", "phone": "0244123456", "group": "Bus A"},
+    {"name": "Kwame Asante", "id_number": "ID-002", "phone": "0244234567", "group": "Bus A"},
+    {"name": "Akosua Boadu", "id_number": "ID-003", "phone": "0244345678", "group": "Bus B"},
 ]
 
 
