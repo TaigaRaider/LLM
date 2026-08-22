@@ -18,9 +18,16 @@ export default function CheckIn() {
   const [result, setResult] = useState(null)
 
   const search = (code) => {
-    const q = (code ?? query).trim().toLowerCase()
+    const q = (code ?? query).trim()
     if (!q) return
-    const hit = participants.find((p) => p.name.toLowerCase().includes(q) || p.idNumber.includes(q) || p.phone.includes(q))
+    const qLower = q.toLowerCase()
+    const qDigits = q.replace(/\D/g, '')
+    const hit = participants.find((p) => {
+      const nameMatch = p.name.toLowerCase().includes(qLower)
+      const idMatch = p.idNumber.toLowerCase().includes(qLower) || (qDigits && p.idNumber.replace(/\D/g, '').includes(qDigits))
+      const phoneMatch = p.phone.replace(/\D/g, '').includes(qDigits)
+      return nameMatch || idMatch || phoneMatch
+    })
     if (hit) {
       setFound(hit)
       setNotFound(false)

@@ -28,10 +28,15 @@ export default function Lookup() {
   const search = (code) => {
     const q = (code ?? query).trim()
     if (!q) return
-    const bag = bags.find((b) => b.tagCode === q.toUpperCase())
-    const participant = participants.find(
-      (p) => p.idNumber === q || p.name.toLowerCase().includes(q.toLowerCase())
-    )
+    const qUpper = q.toUpperCase()
+    const qLower = q.toLowerCase()
+    const qDigits = q.replace(/\D/g, '')
+    const bag = bags.find((b) => b.tagCode === qUpper)
+    const participant = participants.find((p) => {
+      const nameMatch = p.name.toLowerCase().includes(qLower)
+      const idMatch = p.idNumber.toLowerCase().includes(qLower) || (qDigits && p.idNumber.replace(/\D/g, '').includes(qDigits))
+      return nameMatch || idMatch
+    })
     if (bag || participant) {
       setResult({ bag, participant })
       setError(null)
