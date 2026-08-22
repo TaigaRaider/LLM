@@ -105,11 +105,11 @@ const VEHICLE_META = {
 }
 
 export default function Dashboard() {
-  const bags = useStore((s) => s.bags)
-  const participants = useStore((s) => s.participants)
-  const vehicles = useStore((s) => s.vehicles)
-  const vehicle = useStore((s) => s.vehicle)
-  const trips = useStore((s) => s.trips)
+  const bags = useStore((s) => s.bags) || []
+  const participants = useStore((s) => s.participants) || []
+  const vehicles = useStore((s) => s.vehicles) || []
+  const vehicle = useStore((s) => s.vehicle) || { code: 'TRUCK-01', status: 'AT_ORIGIN' }
+  const trips = useStore((s) => s.trips) || []
   const reset = useStore((s) => s.reset)
   const reloadParticipants = useStore((s) => s.reloadParticipants)
   const importParticipants = useStore((s) => s.importParticipants)
@@ -221,12 +221,12 @@ export default function Dashboard() {
   }
 
   const checkedIn = bags.length
-  const handedOver = bags.filter((b) => b.status === 'HANDED_OVER').length
-  const inTransit = bags.filter((b) => b.status === 'IN_TRANSIT').length
-  const unloaded = bags.filter((b) => b.status === 'UNLOADED').length
-  const loaded = bags.filter((b) => b.status === 'LOADED').length
-  const atOrigin = bags.filter((b) => b.status === 'CHECKED_IN').length
-  const lost = bags.filter((b) => b.status === 'LOST').length
+  const handedOver = bags.filter((b) => b?.status === 'HANDED_OVER').length
+  const inTransit = bags.filter((b) => b?.status === 'IN_TRANSIT').length
+  const unloaded = bags.filter((b) => b?.status === 'UNLOADED').length
+  const loaded = bags.filter((b) => b?.status === 'LOADED').length
+  const atOrigin = bags.filter((b) => b?.status === 'CHECKED_IN').length
+  const lost = bags.filter((b) => b?.status === 'LOST').length
   const outstanding = unloaded
   const discrepancy = checkedIn - handedOver - inTransit - unloaded - loaded - atOrigin - lost
 
@@ -287,9 +287,9 @@ export default function Dashboard() {
         </div>
         <div className="space-y-2">
           {vehicleList.map((v) => {
-            const meta = VEHICLE_META[v.status] ?? VEHICLE_META.AT_ORIGIN
+            const meta = VEHICLE_META[v?.status] ?? VEHICLE_META.AT_ORIGIN
             const onTruck = bags.filter(
-              (b) => b.vehicle === v.code && (b.status === 'LOADED' || b.status === 'IN_TRANSIT')
+              (b) => b?.vehicle === v.code && (b?.status === 'LOADED' || b?.status === 'IN_TRANSIT')
             ).length
             return (
               <div key={v.code} className="flex items-center justify-between bg-slate-50 border border-slate-200/60 rounded-lg px-3 py-2">
@@ -301,7 +301,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-slate-500 tabular-nums">
-                    {onTruck} on truck · {bags.filter((b) => b.vehicle === v.code && b.status === 'UNLOADED').length} unloaded
+                    {onTruck} on truck · {bags.filter((b) => b?.vehicle === v.code && b?.status === 'UNLOADED').length} unloaded
                   </span>
                   <button
                     onClick={() => deleteVehicle(v)}

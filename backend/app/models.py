@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
 
-BAG_STATUSES = ("CHECKED_IN", "LOADED", "IN_TRANSIT", "UNLOADED", "HANDED_OVER")
+BAG_STATUSES = ("CHECKED_IN", "LOADED", "IN_TRANSIT", "UNLOADED", "HANDED_OVER", "LOST")
 VEHICLE_STATUSES = ("AT_ORIGIN", "IN_TRANSIT", "AT_DESTINATION")
 
 
@@ -54,6 +54,7 @@ class Bag(Base):
     participant_id: Mapped[str] = mapped_column(ForeignKey("participants.id"), nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default="CHECKED_IN")
     vehicle_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    restore_status: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -79,3 +80,18 @@ class Vehicle(Base):
     code: Mapped[str] = mapped_column(String, primary_key=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="AT_ORIGIN")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Trip(Base):
+    __tablename__ = "trips"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    vehicle_code: Mapped[str] = mapped_column(String, nullable=False)
+    departed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    arrived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    bag_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    departed_by: Mapped[str] = mapped_column(String, default="")
+    arrived_by: Mapped[str] = mapped_column(String, default="")
+    returned_by: Mapped[str] = mapped_column(String, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

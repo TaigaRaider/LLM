@@ -42,11 +42,15 @@ export default function App() {
     }
     window.addEventListener('storage', onStorage)
     window.addEventListener('focus', onFocus)
+    const poll = setInterval(() => {
+      if (getToken() && officer && document.visibilityState === 'visible') refreshAll()
+    }, 10000)
     return () => {
       window.removeEventListener('storage', onStorage)
       window.removeEventListener('focus', onFocus)
+      clearInterval(poll)
     }
-  }, [reloadParticipants, refreshAll])
+  }, [reloadParticipants, refreshAll, officer])
 
   if (!officer || !Array.isArray(officer.permissions) || !getToken()) return <Login />
 

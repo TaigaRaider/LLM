@@ -4,18 +4,26 @@ import BarcodeInput from '../components/BarcodeInput'
 import StatusBadge from '../components/StatusBadge'
 
 export default function Handover() {
-  const participants = useStore((s) => s.participants)
-  const bags = useStore((s) => s.bags)
+  const participants = useStore((s) => s.participants) || []
+  const bags = useStore((s) => s.bags) || []
+  const vehicles = useStore((s) => s.vehicles) || []
+  const vehicle = useStore((s) => s.vehicle) || { code: 'TRUCK-01', status: 'AT_ORIGIN' }
   const handOver = useStore((s) => s.handOver)
   const unloadBag = useStore((s) => s.unloadBag)
   const unloadAll = useStore((s) => s.unloadAll)
+  const markLost = useStore((s) => s.markLost)
+  const recoverBag = useStore((s) => s.recoverBag)
   const showToast = useStore((s) => s.showToast)
-  const vehicle = useStore((s) => s.vehicle)
+  const officer = useStore((s) => s.officer)
 
   const [idScan, setIdScan] = useState('')
   const [bagScan, setBagScan] = useState('')
   const [participant, setParticipant] = useState(null)
   const [step, setStep] = useState(1)
+  const [confirm, setConfirm] = useState(null)
+  const [selected, setSelected] = useState(vehicles.length ? vehicles[0]?.code : vehicle.code)
+
+  const canManageLost = (officer?.permissions || []).some((p) => p === 'handover' || p === 'admin')
 
   const onIdScan = (code) => {
     const q = code.trim().toLowerCase()
@@ -35,16 +43,25 @@ export default function Handover() {
     if (!bag) return showToast(`Tag ${tag} not found`)
     if (bag.participantId !== participant.id) return showToast(`MISMATCH — ${tag} belongs to a different participant`)
     if (bag.status === 'HANDED_OVER') return showToast(`${tag} already handed over`)
+    if (bag.status === 'LOST') return showToast(`${tag} is marked LOST — recover it first`)
     if (bag.status !== 'UNLOADED') return showToast(`${tag} status is ${bag.status} — cannot hand over yet`)
-    const res = await handOver(participant.id, tag)
+    setConfirm({ bag, participant })
+  }
+
+  const doHandover = async () => {
+    const res = await handOver(confirm.participant.id, confirm.bag.tagCode)
     if (!res.ok) return showToast(res.reason)
-    showToast(`${tag} handed over to ${participant.name} ✓`)
+    showToast(`${confirm.bag.tagCode} handed over to ${confirm.participant.name} ✓`)
+    setConfirm(null)
     setStep(1)
     setParticipant(null)
   }
 
   const outstanding = bags.filter((b) => b.status === 'UNLOADED' && b.participantId === participant?.id)
   const participantBags = participant ? bags.filter((b) => b.participantId === participant.id) : []
+  const inTransitVehicles = vehicles.filter((v) =>
+    bags.some((b) => b.vehicle === v.code && b.status === 'IN_TRANSIT')
+  )
 
   return (
     <div className="space-y-4">
@@ -86,7 +103,9 @@ export default function Handover() {
                       className={`inline-flex items-center gap-1.5 text-xs font-mono rounded-md pl-2 pr-1 py-1 border ${
                         b.status === 'UNLOADED'
                           ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                          : 'border-slate-200 bg-white text-slate-700'
+                          : b.status === 'LOST'
+                            ? 'border-red-200 bg-red-50 text-red-900'
+                            : 'border-slate-200 bg-white text-slate-700'
                       }`}
                     >
                       {b.tagCode}
@@ -108,6 +127,29 @@ export default function Handover() {
                           Offload
                         </button>
                       )}
+                      {b.status === 'LOST' && canManageLost && (
+                        <button
+                          onClick={async () => {
+                            const res = await recoverBag(b.tagCode)
+                            showToast(res.ok ? res.reason : res.reason)
+                          }}
+                          className="ml-0.5 px-2 py-0.5 rounded bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700 active:scale-[0.97] transition-colors"
+                        >
+                          Recover
+                        </button>
+                      )}
+                      {b.status !== 'HANDED_OVER' && b.status !== 'LOST' && canManageLost && (
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm(`Mark ${b.tagCode} as lost?`)) return
+                            const res = await markLost(b.tagCode, 'Marked lost at handover desk')
+                            showToast(res.ok ? res.reason : res.reason)
+                          }}
+                          className="ml-0.5 px-2 py-0.5 rounded bg-red-600 text-white text-[11px] font-semibold hover:bg-red-700 active:scale-[0.97] transition-colors"
+                        >
+                          Lost
+                        </button>
+                      )}
                     </span>
                   ))}
                 </div>
@@ -121,6 +163,7 @@ export default function Handover() {
                 onClick={() => {
                   setStep(1)
                   setParticipant(null)
+                  setConfirm(null)
                 }}
                 className="text-sm text-slate-500 underline hover:text-slate-700 transition-colors"
               >
@@ -131,17 +174,71 @@ export default function Handover() {
         )}
       </div>
 
+      {confirm && (
+        <div className="fixed inset-0 bg-slate-900/40 z-40 flex items-center justify-center p-4">
+          <div className="q-pop bg-white rounded-xl border border-slate-200 shadow-2xl w-full max-w-sm p-5">
+            <div className="font-semibold text-slate-900 mb-3">Confirm return</div>
+            <div className="rounded-lg border border-slate-200 p-3 space-y-1.5 mb-4">
+              <div className="flex justify-between">
+                <span className="text-sm text-slate-500">Tag</span>
+                <span className="font-mono font-semibold text-slate-900">{confirm.bag.tagCode}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-slate-500">Participant</span>
+                <span className="font-semibold text-slate-900">{confirm.participant.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-slate-500">ID</span>
+                <span className="font-mono text-slate-700">{confirm.participant.idNumber}</span>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirm(null)}
+                className="flex-1 py-2.5 border border-slate-300 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={doHandover}
+                className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg font-semibold text-sm hover:bg-emerald-700 transition-colors"
+              >
+                Confirm return ✓
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-slate-900">Bag status for {vehicle.code}</h3>
-          <span className="text-xs font-semibold text-slate-600">{vehicle.status.replace('_', ' ')}</span>
+          <h3 className="font-semibold text-slate-900">Unload & status</h3>
         </div>
+
+        {inTransitVehicles.length > 1 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {inTransitVehicles.map((v) => (
+              <button
+                key={v.code}
+                onClick={() => setSelected(v.code)}
+                className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                  v.code === selected
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {v.code} · {bags.filter((b) => b.vehicle === v.code && b.status === 'IN_TRANSIT').length} in transit
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
           {[
             { label: 'On truck (transit)', count: bags.filter((b) => b.status === 'IN_TRANSIT').length },
             { label: 'Unloaded', count: bags.filter((b) => b.status === 'UNLOADED').length },
             { label: 'Handed over', count: bags.filter((b) => b.status === 'HANDED_OVER').length },
-            { label: 'Outstanding', count: bags.filter((b) => b.status === 'UNLOADED').length },
+            { label: 'Lost', count: bags.filter((b) => b.status === 'LOST').length },
           ].map((c) => (
             <div key={c.label} className="bg-slate-50 border border-slate-200/60 rounded-lg p-3">
               <div className="text-2xl font-semibold text-slate-900 tabular-nums">{c.count}</div>
@@ -149,15 +246,16 @@ export default function Handover() {
             </div>
           ))}
         </div>
-        {vehicle.status === 'IN_TRANSIT' && (
+
+        {bags.some((b) => b.status === 'IN_TRANSIT' && b.vehicle === selected) && (
           <button
             onClick={async () => {
-              await unloadAll()
-              showToast('Truck unloaded — all bags offloaded, ready to return to origin')
+              await unloadAll(selected)
+              showToast(`${selected} unloaded — all bags offloaded`)
             }}
             className="mt-4 w-full py-3 bg-teal-600 text-white text-base font-semibold rounded-lg hover:bg-teal-700 active:scale-[0.99] transition-all duration-150"
           >
-            Confirm arrival (offload all bags)
+            Confirm arrival (offload all bags on {selected})
           </button>
         )}
       </div>

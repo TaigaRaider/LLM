@@ -5,8 +5,8 @@ import TagModal from '../components/TagModal'
 import StatusBadge from '../components/StatusBadge'
 
 export default function CheckIn() {
-  const participants = useStore((s) => s.participants)
-  const bags = useStore((s) => s.bags)
+  const participants = useStore((s) => s.participants) || []
+  const bags = useStore((s) => s.bags) || []
   const checkIn = useStore((s) => s.checkIn)
   const removeBag = useStore((s) => s.removeBag)
   const showToast = useStore((s) => s.showToast)

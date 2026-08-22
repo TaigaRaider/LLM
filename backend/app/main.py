@@ -3,11 +3,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from .config import get_settings
 from .database import Base, SessionLocal, engine
-from .models import Officer
-from .routers import auth, bags, officers, participants, reports, sync
+from .models import Officer, Vehicle
+from .routers import auth, bags, officers, participants, reports, sync, trips, vehicles
 from .security import hash_password
 from .sync.service import service
 
@@ -30,7 +31,7 @@ def seed_officers() -> None:
                         name=o["name"],
                         role=o["role"],
                         password_hash=hash_password(password),
-                        must_change_password=True,
+                        must_change_password=False,
                     )
                 )
             db.commit()
@@ -38,9 +39,50 @@ def seed_officers() -> None:
         db.close()
 
 
+def migrate() -> None:
+    """Idempotent migrations for the live database (create_all does not alter existing tables)."""
+    with engine.begin() as conn:
+        # Use IF NOT EXISTS for Postgres (works on 9.6+), fallback for SQLite
+        dialect = conn.dialect.name
+        if dialect == "sqlite":
+            try:
+                conn.execute(text("ALTER TABLE bags ADD COLUMN restore_status VARCHAR"))
+            except Exception:
+                pass
+        else:
+            conn.execute(text("ALTER TABLE bags ADD COLUMN IF NOT EXISTS restore_status VARCHAR"))
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS trips (
+                    id VARCHAR PRIMARY KEY,
+                    vehicle_code VARCHAR NOT NULL,
+                    departed_at TIMESTAMPTZ NOT NULL,
+                    arrived_at TIMESTAMPTZ,
+                    returned_at TIMESTAMPTZ,
+                    bag_count INTEGER NOT NULL DEFAULT 0,
+                    departed_by VARCHAR NOT NULL DEFAULT '',
+                    arrived_by VARCHAR NOT NULL DEFAULT '',
+                    returned_by VARCHAR NOT NULL DEFAULT '',
+                    created_at TIMESTAMPTZ
+                )
+                """
+            )
+        )
+        # Use now() for Postgres, datetime('now') for SQLite
+        now_fn = "now()" if dialect != "sqlite" else "datetime('now')"
+        conn.execute(
+            text(
+                f"INSERT INTO vehicles (code, status, updated_at) VALUES ('TRUCK-01', 'AT_ORIGIN', {now_fn}) "
+                "ON CONFLICT (code) DO NOTHING"
+            )
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    migrate()
     seed_officers()
     task = None
     if service.adapter.enabled:
@@ -66,6 +108,8 @@ app.include_router(participants.router)
 app.include_router(bags.router)
 app.include_router(reports.router)
 app.include_router(sync.router)
+app.include_router(vehicles.router)
+app.include_router(trips.router)
 
 
 @app.get("/api/health")

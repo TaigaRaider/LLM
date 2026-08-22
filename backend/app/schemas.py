@@ -92,6 +92,7 @@ class BagOut(BaseModel):
     participant_id: str
     status: str
     vehicle_code: str | None
+    restore_status: str | None = None
     timeline: list[EventOut] = []
 
 
@@ -102,6 +103,7 @@ class CheckInRequest(BaseModel):
 
 class LoadRequest(BaseModel):
     tag_codes: list[str] = Field(min_length=1)
+    vehicle_code: str | None = None
 
 
 class HandoverRequest(BaseModel):
@@ -147,3 +149,38 @@ class VehicleOut(BaseModel):
 
     code: str
     status: str
+
+
+class VehicleCreate(BaseModel):
+    code: str = Field(min_length=2, max_length=20)
+
+
+class VehicleUpdate(BaseModel):
+    status: str | None = None
+
+
+class TripOut(BaseModel):
+    id: str
+    vehicle_code: str
+    departed_at: datetime
+    arrived_at: datetime | None = None
+    returned_at: datetime | None = None
+    bag_count: int
+    departed_by: str = ""
+    arrived_by: str = ""
+    returned_by: str = ""
+
+
+class LostBagRequest(BaseModel):
+    tag_code: str = Field(min_length=1)
+    note: str = ""
+
+
+class RecoverBagRequest(BaseModel):
+    tag_code: str = Field(min_length=1)
+
+
+class ImportResult(BaseModel):
+    total: int
+    created: int
+    skipped: list[str] = []

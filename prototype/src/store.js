@@ -41,6 +41,19 @@ const fmtTime = (iso) => {
   }
 }
 
+const fmtDate = (iso) => {
+  try {
+    return new Date(iso).toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return ''
+  }
+}
+
 const normalizeParticipant = (p) => ({
   id: p.id,
   name: p.name,
@@ -56,12 +69,34 @@ const normalizeBag = (b) => ({
   participantId: b.participant_id,
   status: b.status,
   vehicle: b.vehicle_code,
+  restoreStatus: b.restore_status,
   timeline: (b.timeline || []).map((e) => ({
     event: e.event,
     officer: e.officer_name,
     time: fmtTime(e.timestamp),
     note: e.note,
   })),
+})
+
+const normalizeVehicle = (v) => ({
+  code: v.code,
+  status: v.status,
+  loaded: v.loaded ?? 0,
+  inTransit: v.in_transit ?? 0,
+  unloaded: v.unloaded ?? 0,
+  total: v.total ?? 0,
+})
+
+const normalizeTrip = (t) => ({
+  id: t.id,
+  vehicleCode: t.vehicle_code,
+  departedAt: fmtDate(t.departed_at),
+  arrivedAt: t.arrived_at ? fmtDate(t.arrived_at) : null,
+  returnedAt: t.returned_at ? fmtDate(t.returned_at) : null,
+  bagCount: t.bag_count,
+  departedBy: t.departed_by,
+  arrivedBy: t.arrived_by,
+  returnedBy: t.returned_by,
 })
 
 const loadPending = () => {
@@ -91,6 +126,8 @@ export const useStore = create(
       officer: getStoredOfficer(),
       participants: [],
       bags: [],
+      vehicles: [],
+      trips: [],
       vehicle: { code: 'TRUCK-01', status: 'AT_ORIGIN' },
       nextTagNumber: 1,
       toast: null,
@@ -134,7 +171,11 @@ export const useStore = create(
         set({ loginError: null })
         try {
           const officer = await loginOfficer(username, password)
-          set({ officer, online: true, mustChangePassword: officer.must_change_password })
+          if (officer.must_change_password) {
+            set({ officer, online: true, mustChangePassword: true })
+            return officer
+          }
+          set({ officer, online: true, mustChangePassword: false })
           await get().refreshAll()
           return officer
         } catch (err) {
@@ -156,15 +197,19 @@ export const useStore = create(
 
       refreshAll: async () => {
         try {
-          const [participants, bags, vehicle] = await Promise.all([
+          const [participants, bags, vehicle, vehicles, trips] = await Promise.all([
             api('/participants'),
             api('/bags'),
             api('/vehicle'),
+            api('/vehicles'),
+            api('/trips'),
           ])
           set({
             participants: participants.map(normalizeParticipant),
             bags: bags.map(normalizeBag),
             vehicle,
+            vehicles: vehicles.map(normalizeVehicle),
+            trips: trips.map(normalizeTrip),
             online: true,
           })
           return true
@@ -271,6 +316,7 @@ export const useStore = create(
               participantId,
               status: 'CHECKED_IN',
               vehicle: null,
+              restoreStatus: null,
               timeline: [{ event: 'CHECKED_IN', officer, time, note: 'Bag tagged & receipt issued' }],
             })
             n++
@@ -298,12 +344,12 @@ export const useStore = create(
         }
       },
 
-      loadBags: async (tagCodes) => {
+      loadBags: async (tagCodes, vehicleCode) => {
         const officer = get().officer.name
         const time = now()
-        const vehicle = get().vehicle.code
+        const vehicle = vehicleCode || get().vehicle.code
         try {
-          await api('/bags/load', { method: 'POST', body: { tag_codes: tagCodes } })
+          await api('/bags/load', { method: 'POST', body: { tag_codes: tagCodes, vehicle_code: vehicle } })
           set((s) => ({
             bags: s.bags.map((b) =>
               tagCodes.includes(b.tagCode) && b.status === 'CHECKED_IN'
@@ -326,20 +372,23 @@ export const useStore = create(
             ),
             online: false,
           }))
-          get().queueOp({ path: '/bags/load', method: 'POST', body: { tag_codes: tagCodes } })
+          get().queueOp({ path: '/bags/load', method: 'POST', body: { tag_codes: tagCodes, vehicle_code: vehicle } })
           return true
         }
       },
 
-      depart: async () => {
+      depart: async (vehicleCode) => {
         const officer = get().officer.name
         const time = now()
+        const code = vehicleCode || get().vehicle.code
         try {
-          const vehicle = await api('/bags/depart', { method: 'POST' })
+          await api(`/bags/depart?vehicle_code=${encodeURIComponent(code)}`, { method: 'POST' })
+          const vehicles = get().vehicles.map((v) => (v.code === code ? { ...v, status: 'IN_TRANSIT' } : v))
           set((s) => ({
-            vehicle,
+            vehicles,
+            vehicle: code === s.vehicle.code ? { ...s.vehicle, status: 'IN_TRANSIT' } : s.vehicle,
             bags: s.bags.map((b) =>
-              b.status === 'LOADED'
+              b.status === 'LOADED' && b.vehicle === code
                 ? { ...b, status: 'IN_TRANSIT', timeline: [...b.timeline, { event: 'IN_TRANSIT', officer, time, note: 'Manifest locked — truck departed' }] }
                 : b
             ),
@@ -351,15 +400,16 @@ export const useStore = create(
             return
           }
           set((s) => ({
-            vehicle: { ...s.vehicle, status: 'IN_TRANSIT' },
+            vehicles: s.vehicles.map((v) => (v.code === code ? { ...v, status: 'IN_TRANSIT' } : v)),
+            vehicle: code === s.vehicle.code ? { ...s.vehicle, status: 'IN_TRANSIT' } : s.vehicle,
             bags: s.bags.map((b) =>
-              b.status === 'LOADED'
+              b.status === 'LOADED' && b.vehicle === code
                 ? { ...b, status: 'IN_TRANSIT', timeline: [...b.timeline, { event: 'IN_TRANSIT', officer, time, note: 'Manifest locked — truck departed' }] }
                 : b
             ),
             online: false,
           }))
-          get().queueOp({ path: '/bags/depart', method: 'POST' })
+          get().queueOp({ path: `/bags/depart?vehicle_code=${encodeURIComponent(code)}`, method: 'POST' })
         }
       },
 
@@ -374,7 +424,12 @@ export const useStore = create(
           await api(`/bags/unload?tag_code=${encodeURIComponent(tagCode)}`, { method: 'POST' })
           const remainingInTransit = get().bags.filter((b) => b.status === 'IN_TRANSIT' && b.tagCode !== tagCode).length
           set((s) => ({
-            vehicle: remainingInTransit === 0 ? { ...s.vehicle, status: 'AT_DESTINATION' } : s.vehicle,
+            vehicles: remainingInTransit === 0
+              ? s.vehicles.map((v) => (v.code === bag.vehicle ? { ...v, status: 'AT_DESTINATION' } : v))
+              : s.vehicles,
+            vehicle: remainingInTransit === 0 && bag.vehicle === s.vehicle.code
+              ? { ...s.vehicle, status: 'AT_DESTINATION' }
+              : s.vehicle,
             bags: s.bags.map((b) =>
               b.tagCode === tagCode
                 ? { ...b, status: 'UNLOADED', timeline: [...b.timeline, { event: 'UNLOADED', officer, time, note: 'Scanned off truck at destination' }] }
@@ -387,7 +442,12 @@ export const useStore = create(
           if (isClientError(err)) return { ok: false, reason: err.message }
           const remainingInTransit = get().bags.filter((b) => b.status === 'IN_TRANSIT' && b.tagCode !== tagCode).length
           set((s) => ({
-            vehicle: remainingInTransit === 0 ? { ...s.vehicle, status: 'AT_DESTINATION' } : s.vehicle,
+            vehicles: remainingInTransit === 0
+              ? s.vehicles.map((v) => (v.code === bag.vehicle ? { ...v, status: 'AT_DESTINATION' } : v))
+              : s.vehicles,
+            vehicle: remainingInTransit === 0 && bag.vehicle === s.vehicle.code
+              ? { ...s.vehicle, status: 'AT_DESTINATION' }
+              : s.vehicle,
             bags: s.bags.map((b) =>
               b.tagCode === tagCode
                 ? { ...b, status: 'UNLOADED', timeline: [...b.timeline, { event: 'UNLOADED', officer, time, note: 'Scanned off truck at destination' }] }
@@ -400,15 +460,17 @@ export const useStore = create(
         }
       },
 
-      unloadAll: async () => {
+      unloadAll: async (vehicleCode) => {
         const officer = get().officer.name
         const time = now()
+        const code = vehicleCode || get().vehicle.code
         try {
-          await api('/bags/unload?all_bags=true', { method: 'POST' })
+          await api(`/bags/unload?all_bags=true&vehicle_code=${encodeURIComponent(code)}`, { method: 'POST' })
           set((s) => ({
-            vehicle: { ...s.vehicle, status: 'AT_DESTINATION' },
+            vehicles: s.vehicles.map((v) => (v.code === code ? { ...v, status: 'AT_DESTINATION' } : v)),
+            vehicle: code === s.vehicle.code ? { ...s.vehicle, status: 'AT_DESTINATION' } : s.vehicle,
             bags: s.bags.map((b) =>
-              b.status === 'IN_TRANSIT'
+              b.status === 'IN_TRANSIT' && b.vehicle === code
                 ? { ...b, status: 'UNLOADED', timeline: [...b.timeline, { event: 'UNLOADED', officer, time, note: 'Scanned off truck at destination' }] }
                 : b
             ),
@@ -420,29 +482,105 @@ export const useStore = create(
             return
           }
           set((s) => ({
-            vehicle: { ...s.vehicle, status: 'AT_DESTINATION' },
+            vehicles: s.vehicles.map((v) => (v.code === code ? { ...v, status: 'AT_DESTINATION' } : v)),
+            vehicle: code === s.vehicle.code ? { ...s.vehicle, status: 'AT_DESTINATION' } : s.vehicle,
             bags: s.bags.map((b) =>
-              b.status === 'IN_TRANSIT'
+              b.status === 'IN_TRANSIT' && b.vehicle === code
                 ? { ...b, status: 'UNLOADED', timeline: [...b.timeline, { event: 'UNLOADED', officer, time, note: 'Scanned off truck at destination' }] }
                 : b
             ),
             online: false,
           }))
-          get().queueOp({ path: '/bags/unload?all_bags=true', method: 'POST' })
+          get().queueOp({ path: `/bags/unload?all_bags=true&vehicle_code=${encodeURIComponent(code)}`, method: 'POST' })
         }
       },
 
-      returnToOrigin: async () => {
+      returnToOrigin: async (vehicleCode) => {
+        const code = vehicleCode || get().vehicle.code
         try {
-          const vehicle = await api('/bags/return-to-origin', { method: 'POST' })
-          set({ vehicle, online: true })
+          await api(`/bags/return-to-origin?vehicle_code=${encodeURIComponent(code)}`, { method: 'POST' })
+          set((s) => ({
+            vehicles: s.vehicles.map((v) => (v.code === code ? { ...v, status: 'AT_ORIGIN' } : v)),
+            vehicle: code === s.vehicle.code ? { ...s.vehicle, status: 'AT_ORIGIN' } : s.vehicle,
+            online: true,
+          }))
         } catch (err) {
           if (isClientError(err)) {
             get().showToast(err.message)
             return
           }
-          set((s) => ({ vehicle: { ...s.vehicle, status: 'AT_ORIGIN' }, online: false }))
-          get().queueOp({ path: '/bags/return-to-origin', method: 'POST' })
+          set((s) => ({
+            vehicles: s.vehicles.map((v) => (v.code === code ? { ...v, status: 'AT_ORIGIN' } : v)),
+            vehicle: code === s.vehicle.code ? { ...s.vehicle, status: 'AT_ORIGIN' } : s.vehicle,
+            online: false,
+          }))
+          get().queueOp({ path: `/bags/return-to-origin?vehicle_code=${encodeURIComponent(code)}`, method: 'POST' })
+        }
+      },
+
+      markLost: async (tagCode, note) => {
+        const officer = get().officer.name
+        const time = now()
+        const bag = get().bags.find((b) => b.tagCode === tagCode)
+        if (!bag) return { ok: false, reason: `Tag ${tagCode} not found` }
+        if (bag.status === 'HANDED_OVER' || bag.status === 'LOST')
+          return { ok: false, reason: `${tagCode} is ${bag.status} — cannot mark lost` }
+        try {
+          await api('/bags/lost', { method: 'POST', body: { tag_code: tagCode, note } })
+          set((s) => ({
+            bags: s.bags.map((b) =>
+              b.tagCode === tagCode
+                ? { ...b, status: 'LOST', restoreStatus: bag.status, timeline: [...b.timeline, { event: 'LOST', officer, time, note: note || 'Marked lost' }] }
+                : b
+            ),
+            online: true,
+          }))
+          return { ok: true, reason: `${tagCode} marked lost` }
+        } catch (err) {
+          if (isClientError(err)) return { ok: false, reason: err.message }
+          set((s) => ({
+            bags: s.bags.map((b) =>
+              b.tagCode === tagCode
+                ? { ...b, status: 'LOST', restoreStatus: bag.status, timeline: [...b.timeline, { event: 'LOST', officer, time, note: note || 'Marked lost' }] }
+                : b
+            ),
+            online: false,
+          }))
+          get().queueOp({ path: '/bags/lost', method: 'POST', body: { tag_code: tagCode, note } })
+          return { ok: true, reason: `${tagCode} marked lost locally — will sync when online` }
+        }
+      },
+
+      recoverBag: async (tagCode) => {
+        const officer = get().officer.name
+        const time = now()
+        const bag = get().bags.find((b) => b.tagCode === tagCode)
+        if (!bag) return { ok: false, reason: `Tag ${tagCode} not found` }
+        if (bag.status !== 'LOST') return { ok: false, reason: `${tagCode} is not marked lost` }
+        const target = bag.restoreStatus || 'UNLOADED'
+        try {
+          await api('/bags/recover', { method: 'POST', body: { tag_code: tagCode } })
+          set((s) => ({
+            bags: s.bags.map((b) =>
+              b.tagCode === tagCode
+                ? { ...b, status: target, restoreStatus: null, timeline: [...b.timeline, { event: target, officer, time, note: 'Bag recovered — returned to previous status' }] }
+                : b
+            ),
+            online: true,
+          }))
+          return { ok: true, reason: `${tagCode} recovered` }
+        } catch (err) {
+          if (isClientError(err)) return { ok: false, reason: err.message }
+          set((s) => ({
+            bags: s.bags.map((b) =>
+              b.tagCode === tagCode
+                ? { ...b, status: target, restoreStatus: null, timeline: [...b.timeline, { event: target, officer, time, note: 'Bag recovered — returned to previous status' }] }
+                : b
+            ),
+            online: false,
+          }))
+          get().queueOp({ path: '/bags/recover', method: 'POST', body: { tag_code: tagCode } })
+          return { ok: true, reason: `${tagCode} recovered locally — will sync when online` }
         }
       },
 
@@ -476,7 +614,12 @@ export const useStore = create(
       },
 
       reset: async () => {
-        const cleared = { bags: [], vehicle: { code: 'TRUCK-01', status: 'AT_ORIGIN' }, nextTagNumber: 1 }
+        const cleared = {
+          bags: [],
+          vehicle: { code: 'TRUCK-01', status: 'AT_ORIGIN' },
+          vehicles: [],
+          nextTagNumber: 1,
+        }
         try {
           await api('/bags/reset', { method: 'POST' })
           set({ ...cleared, online: true })
@@ -492,6 +635,8 @@ export const useStore = create(
         officer: s.officer,
         participants: s.participants,
         bags: s.bags,
+        vehicles: s.vehicles,
+        trips: s.trips,
         vehicle: s.vehicle,
         nextTagNumber: s.nextTagNumber,
       }),
@@ -505,4 +650,5 @@ export const STATUS_META = {
   IN_TRANSIT: { label: 'In transit', color: 'bg-amber-50 text-amber-700 border-amber-200' },
   UNLOADED: { label: 'Unloaded', color: 'bg-teal-50 text-teal-700 border-teal-200' },
   HANDED_OVER: { label: 'Handed over', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  LOST: { label: 'Lost', color: 'bg-red-50 text-red-700 border-red-200' },
 }

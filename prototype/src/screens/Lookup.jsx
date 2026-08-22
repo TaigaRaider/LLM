@@ -9,14 +9,21 @@ const EVENT_COLORS = {
   IN_TRANSIT: 'bg-amber-500',
   UNLOADED: 'bg-teal-500',
   HANDED_OVER: 'bg-emerald-500',
+  LOST: 'bg-red-500',
 }
 
 export default function Lookup() {
-  const bags = useStore((s) => s.bags)
-  const participants = useStore((s) => s.participants)
+  const bags = useStore((s) => s.bags) || []
+  const participants = useStore((s) => s.participants) || []
+  const markLost = useStore((s) => s.markLost)
+  const recoverBag = useStore((s) => s.recoverBag)
+  const showToast = useStore((s) => s.showToast)
+  const officer = useStore((s) => s.officer)
   const [query, setQuery] = useState('')
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
+
+  const canManageLost = (officer?.permissions || []).some((p) => p === 'handover' || p === 'admin')
 
   const search = (code) => {
     const q = (code ?? query).trim()
@@ -58,6 +65,36 @@ export default function Lookup() {
             </div>
             <StatusBadge status={result.bag.status} />
           </div>
+          {canManageLost && (
+            <div className="flex gap-2 mb-4">
+              {result.bag.status === 'LOST' ? (
+                <button
+                  onClick={async () => {
+                    const res = await recoverBag(result.bag.tagCode)
+                    showToast(res.reason)
+                    setResult({ ...result, bag: { ...result.bag, status: 'UNLOADED' } })
+                  }}
+                  className="px-3 py-2 text-sm bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors"
+                >
+                  Recover bag
+                </button>
+              ) : (
+                result.bag.status !== 'HANDED_OVER' && (
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm(`Mark ${result.bag.tagCode} as lost?`)) return
+                      const res = await markLost(result.bag.tagCode, 'Marked lost in lookup')
+                      showToast(res.reason)
+                      setResult({ ...result, bag: { ...result.bag, status: 'LOST' } })
+                    }}
+                    className="px-3 py-2 text-sm bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                  >
+                    Mark lost
+                  </button>
+                )
+              )}
+            </div>
+          )}
           <div className="relative pl-6">
             {result.bag.timeline.map((e, i) => (
               <div key={i} className="relative pb-5 last:pb-0">
