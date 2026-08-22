@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./llm.db"
     jwt_secret: str = "dev-secret-change-me"
     jwt_expire_minutes: int = 12 * 60
-    cors_origins: list[str] = ["*", "https://luggagelogisticsmanager.vercel.app"]
+    cors_origins: list[str] = ["https://luggagelogisticsmanager.vercel.app", "http://localhost:5173", "http://localhost:3000"]
 
     default_officer_password: str = "officer123"
 
